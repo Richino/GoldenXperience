@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiUrl } from "@/lib/api/url";
 import { verifiedAccountSummary } from "@/lib/account-summary";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
-import type { AccountSummary, ConnectionStatus, HomeCurrencyConversion } from "@/types/forex";
+import type { AccountBalanceHistoryPoint, AccountSummary, ConnectionStatus, HomeCurrencyConversion } from "@/types/forex";
 
 export interface OpenPositionFill {
   /** Only populated when financing and transaction costs are complete. */
@@ -40,7 +40,9 @@ export function useOpenPositionSnapshot(enabled = true) {
     fills: Record<string, OpenPositionFill>;
     currency: string | null;
     homeConversions: Record<string, HomeCurrencyConversion>;
-  }>({ fills: {}, currency: null, homeConversions: {} });
+    /** Broker balance movements (fills, financing…) from the same snapshot. */
+    history: AccountBalanceHistoryPoint[];
+  }>({ fills: {}, currency: null, homeConversions: {}, history: [] });
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -68,6 +70,7 @@ export function useOpenPositionSnapshot(enabled = true) {
           unrealizedPL: number;
           unrealizedNetPnlUsd?: number | null;
         }>;
+        history?: AccountBalanceHistoryPoint[];
       };
       const nextFills: Record<string, OpenPositionFill> = {};
       for (const position of payload.positions ?? []) {
@@ -88,7 +91,13 @@ export function useOpenPositionSnapshot(enabled = true) {
         nextFills[position.instrument] ??= fill;
       }
       const account = verifiedAccountSummary(payload);
-      setSnapshot({ fills: nextFills, currency: account?.currency ?? null, homeConversions: account ? payload.homeConversions ?? {} : {} });
+      setSnapshot((current) => ({
+        fills: nextFills,
+        currency: account?.currency ?? null,
+        homeConversions: account ? payload.homeConversions ?? {} : {},
+        // Keep the last good history if a poll arrives without one.
+        history: Array.isArray(payload.history) ? payload.history : current.history,
+      }));
     } catch {
       // A missing broker snapshot leaves the paper model in place.
     } finally {

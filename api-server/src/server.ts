@@ -313,6 +313,13 @@ async function requireOwner(request: IncomingMessage, response: ServerResponse) 
 async function handleApi(request: IncomingMessage, response: ServerResponse) {
   if (!request.url) return json(request, response, { error: "Missing request URL." }, 400);
   const url = new URL(request.url, `http://${request.headers.host || "localhost"}`);
+  // Any change (close, cancel, place, edit) must not be followed by a reused
+  // pre-change balance; the next snapshot read goes to OANDA.
+  if (request.method && request.method !== "GET" && request.method !== "HEAD" && request.method !== "OPTIONS") {
+    accountSnapshotShares.clear();
+    // A read that started mid-change may hold the old balance; drop it too.
+    response.once("finish", () => accountSnapshotShares.clear());
+  }
 
   if (request.method === "OPTIONS") {
     cors(request, response);
@@ -1208,13 +1215,8 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     case "/api/oanda/account-snapshot": {
       const owner = await requireOwner(request, response);
       if (!owner) return;
-      const snapshot = await getAccountSnapshot();
-      const history = await cachedAccountBalanceHistory(`${snapshot.data.id}:${snapshot.lastTransactionID}`);
-      if (history.status.state !== "connected") return json(request, response, { error: "Account history unavailable; keeping the previous financial snapshot." }, 503);
-      const result = { ...snapshot, history: historyAtSnapshot(history.data, snapshot.lastTransactionID, snapshot.data.balance) };
-      snapshotFills(result);
-      await attachRiskNetCash(owner.id, result);
-      await observeRiskExcursions(owner.id, result.positions, result.checkedAt, result.data.currency, result.data.id).catch(() => undefined);
+      const result = await sharedAccountSnapshot(owner.id);
+      if (!result) return json(request, response, { error: "Account history unavailable; keeping the previous financial snapshot." }, 503);
       return json(request, response, result);
     }
     case "/api/oanda/account-summary": {
@@ -1269,6 +1271,41 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
 const ACCOUNT_HISTORY_CACHE_MS = 60_000;
 type AccountHistoryResult = Awaited<ReturnType<typeof getAccountBalanceHistory>>;
 let accountHistoryCache: { expiresAt: number; result: Promise<AccountHistoryResult>; boundary?: string } | null = null;
+
+/**
+ * Requests that arrive together (Home's 5 s balance poll, the Trades page's
+ * position poll, a second tab) share one OANDA account + pricing read and one
+ * risk-excursion write instead of each paying for its own. Reused for 2 s,
+ * well under the fastest poll, so the balance stays as live as before.
+ */
+const ACCOUNT_SNAPSHOT_REUSE_MS = 2_000;
+async function buildAccountSnapshot(ownerId: string) {
+  const snapshot = await getAccountSnapshot();
+  const history = await cachedAccountBalanceHistory(`${snapshot.data.id}:${snapshot.lastTransactionID}`);
+  if (history.status.state !== "connected") return null;
+  const result = { ...snapshot, history: historyAtSnapshot(history.data, snapshot.lastTransactionID, snapshot.data.balance) };
+  snapshotFills(result);
+  await attachRiskNetCash(ownerId, result);
+  await observeRiskExcursions(ownerId, result.positions, result.checkedAt, result.data.currency, result.data.id).catch(() => undefined);
+  return result;
+}
+const accountSnapshotShares = new Map<string, { expiresAt: number; result: ReturnType<typeof buildAccountSnapshot> }>();
+function sharedAccountSnapshot(ownerId: string) {
+  const cached = accountSnapshotShares.get(ownerId);
+  if (cached && cached.expiresAt > Date.now()) return cached.result;
+  const result = buildAccountSnapshot(ownerId);
+  // Shared while in flight; kept briefly only when it succeeded.
+  const entry = { expiresAt: Infinity, result };
+  accountSnapshotShares.set(ownerId, entry);
+  void result.then((value) => {
+    if (accountSnapshotShares.get(ownerId) !== entry) return;
+    if (value) entry.expiresAt = Date.now() + ACCOUNT_SNAPSHOT_REUSE_MS;
+    else accountSnapshotShares.delete(ownerId);
+  }, () => {
+    if (accountSnapshotShares.get(ownerId) === entry) accountSnapshotShares.delete(ownerId);
+  });
+  return result;
+}
 
 function cachedAccountBalanceHistory(boundary?: string) {
   const now = Date.now();

@@ -258,18 +258,22 @@ function LedgerHero({
     () => historyAvailable && quotaDate !== null ? accountQuota(account.balance, history, quotaDate) : null,
     [account.balance, history, historyAvailable, quotaDate],
   );
-  const quotaMoney = new Intl.NumberFormat("en-US", { style: "currency", currency: account.currency, maximumFractionDigits: 0 });
+  const quotaMoney = new Intl.NumberFormat("en-US", { style: "currency", currency: account.currency });
   const wide = useWide();
   const { ref: balanceRef, scrolledPast } = useScrolledPast<HTMLHeadingElement>();
   const series = useMemo(
     () => buildAccountAmountSeries({ nav: account.nav, unrealizedPL: account.unrealizedPL, history, range }),
     [account.nav, account.unrealizedPL, history, range],
   );
-  // Same definition as before the redesign: broker balance movements booked
-  // this ET day plus what is still floating on open positions.
+  // Broker balance movements booked this quota day (rolls over at 1 AM ET, on
+  // the live clock), so "Realized today" always equals the daily quota's
+  // realized figure. Before the clock is read (first render), fall back to the
+  // server's ET date so server and client markup agree.
   const realizedPL = useMemo(
-    () => history.reduce((sum, point) => (tradingDayKey(point.time) === todayKey ? sum + point.change : sum), 0),
-    [history, todayKey],
+    () => quota
+      ? quota.daily.realized
+      : history.reduce((sum, point) => (tradingDayKey(point.time) === todayKey ? sum + point.change : sum), 0),
+    [history, todayKey, quota],
   );
   const dayPL = realizedPL + account.unrealizedPL;
   const opening = account.nav - dayPL;
@@ -336,9 +340,9 @@ function LedgerHero({
               <dt>{period === "daily" ? "Daily quota" : "Weekly quota"}</dt>
               <dd className="metric-number">
                 {result ? <>
-                  <span className={tone(result.realized)}>{quotaMoney.format(result.realized)}</span>
+                  <span className={tone(result.realized)}>{signedMoney(result.realized, account.currency)}</span>
                   <span className="nl-stat-quota-target">
-                    {result.target <= 0 && result.realized >= result.target
+                    {result.realized >= result.target
                       ? " · Quota met"
                       : ` of ${quotaMoney.format(Math.max(0, result.target))}`}
                   </span>
@@ -523,7 +527,7 @@ function LedgerActivity({ items, currency }: { items: HomeActivityItem[]; curren
               <span className={`metric-number ${tone(item.paperPl)}`}>
                 {item.paperPl === null ? "—" : signedMoney(item.paperPl, currency)}
               </span>
-              <span className={`metric-number nl-activity-r ${tone(item.resultR, 0.05)}`}>{signedR(item.resultR, 1)}</span>
+              <span className={`metric-number nl-activity-r ${tone(item.resultR, 0.05)}`}>{item.kind === "financing" ? "Interest" :signedR(item.resultR, 1)}</span>
             </span>
           </Link>
         ))}

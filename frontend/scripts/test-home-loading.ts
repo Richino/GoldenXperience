@@ -3,20 +3,11 @@ import { HOME_LOADING_SECTIONS, initialHomeLoadingState, updateHomeLoading } fro
 
 let state = initialHomeLoadingState();
 assert.equal(state.revealed, false);
-assert.equal("plans" in state.sections, false, "retired Plans must not hold Home behind the loading skeleton");
-assert.equal("trends" in state.sections, false, "the Weekly scan must not hold the rest of Home behind its skeleton");
-assert.equal(updateHomeLoading(state, { section: "trends", ready: false }), state, "a slow scan cannot register as a blocking section");
-assert.equal(updateHomeLoading(state, { section: "trends", ready: true }), state, "scan completion cannot alter the page reveal");
-state = updateHomeLoading(state, { section: "swing", ready: false });
-for (const section of HOME_LOADING_SECTIONS) state = updateHomeLoading(state, { section, ready: true });
-assert.equal(state.revealed, false, "a nested Swing read holds the same skeleton until it settles");
-state = updateHomeLoading(state, { section: "swing", ready: true });
-assert.equal(state.revealed, true, "all first snapshots reveal together");
-assert.equal(updateHomeLoading(state, { section: "trends", ready: false }), state, "background refreshes never re-hide the page");
-
-let weekly = initialHomeLoadingState();
-weekly = updateHomeLoading(weekly, { section: "news", ready: true });
-assert.equal(weekly.revealed, false, "Last week review loads with the rest of Home, not after it");
-weekly = updateHomeLoading(weekly, { section: "weekly", ready: true });
-assert.equal(weekly.revealed, true, "Home reveals once the weekly review has settled");
-console.log("Home loading checks passed: complete first reveal, nested reads, slow sections, empty/error results and stable refreshes.");
+assert.deepEqual([...HOME_LOADING_SECTIONS], ["account"], "only the balance holds Home behind the skeleton");
+for (const section of ["news", "weekly", "swing", "plans", "trends"]) {
+  assert.equal(updateHomeLoading(state, { section, ready: false }), state, `a slow ${section} read cannot hold Home back`);
+}
+state = updateHomeLoading(state, { section: "account", ready: true });
+assert.equal(state.revealed, true, "Home reveals as soon as the balance has loaded");
+assert.equal(updateHomeLoading(state, { section: "account", ready: false }), state, "background refreshes never re-hide the page");
+console.log("Home loading checks passed: balance-only reveal, non-blocking sections and stable refreshes.");

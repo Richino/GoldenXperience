@@ -2550,6 +2550,18 @@ html:is(.dark, :not(.dark)) body .nl-tr-bell {
   background: color-mix(in srgb, var(--surface) 70%, var(--surface-raised));
 }
 
+/* Overnight interest rows: listed by time between trades, not selectable. */
+.nl-tr-row.is-static,
+.nl-tr-card.is-static {
+  cursor: default;
+  border-style: dashed;
+}
+
+.nl-tr-row.is-static:hover,
+.nl-tr-card.is-static:hover {
+  background: transparent;
+}
+
 .nl-tr-row.is-selected {
   border-color: var(--border-strong);
   background: var(--surface-raised);

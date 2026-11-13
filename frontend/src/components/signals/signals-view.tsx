@@ -223,7 +223,8 @@ export function SignalsView({
       const [strategyResponse, watchlistResponse, journalResponse] = await Promise.all([
         fetch(apiUrl("/api/strategy"), { credentials: "include", cache: "no-store" }),
         fetch(apiUrl("/api/watchlist"), { credentials: "include", cache: "no-store" }),
-        fetch(apiUrl("/api/journal/trades?limit=50&filter=all"), {
+        // Read stored rows now; the OANDA history import runs alongside.
+        fetch(apiUrl("/api/journal/trades?limit=50&filter=all&sync=background"), {
           credentials: "include",
           cache: "no-store",
         }),

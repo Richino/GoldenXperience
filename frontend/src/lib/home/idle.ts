@@ -2,7 +2,7 @@ import { formatClockTime, formatShortDay, startOfTradingDay, tradingDayKey } fro
 import { displayNameFor } from "@/lib/instruments/catalog";
 import { STRATEGY_FAMILY_LABEL } from "@/lib/strategy/family-label";
 import { nextEntryWindow } from "@/lib/strategy/strategy-engine";
-import type { JournalTrade } from "@/types/forex";
+import type { AccountBalanceHistoryPoint, JournalTrade } from "@/types/forex";
 
 export type UpcomingStrategyRow = {
   instrument: string;
@@ -21,7 +21,7 @@ export type HomeUpcomingItem = {
   windowLabel: string;
 };
 
-export type HomeActivityKind = "tp" | "sl" | "exit" | "other";
+export type HomeActivityKind = "tp" | "sl" | "exit" | "other" | "financing";
 
 export type HomeActivityItem = {
   id: string;
@@ -126,11 +126,44 @@ function activityLabel(trade: JournalTrade, kind: HomeActivityKind) {
       return trade.outcome === "forced_close" ? "FORCED CLOSE" : "CLOSED";
     case "other":
       return "CLOSED";
+    case "financing":
+      return "FINANCING";
     default: {
       const _never: never = kind;
       return _never;
     }
   }
+}
+
+/**
+ * OANDA's 5 PM ET overnight interest (DAILY_FINANCING) on positions held past
+ * rollover. It moves the balance without closing a trade, so it is listed
+ * beside trades to explain the gap between trade P/L and "Realized today".
+ */
+export function financingActivityFromHistory(history: AccountBalanceHistoryPoint[], limit = 10): HomeActivityItem[] {
+  return history
+    .filter((point) => point.type === "DAILY_FINANCING" && Math.abs(point.change) >= 0.005)
+    .sort((a, b) => Date.parse(b.time) - Date.parse(a.time))
+    .slice(0, limit)
+    .map((point) => ({
+      id: `financing-${point.id}`,
+      pair: "Overnight interest",
+      instrument: null,
+      chartTradeId: null,
+      label: point.change >= 0 ? "FINANCING PAID" : "FINANCING CHARGED",
+      kind: "financing",
+      resultR: null,
+      paperPl: point.change,
+      openedAt: null,
+      at: point.time,
+    }));
+}
+
+/** Closed trades and overnight financing, newest first. */
+export function recentAccountActivity(trades: JournalTrade[], history: AccountBalanceHistoryPoint[], limit = 10): HomeActivityItem[] {
+  return [...recentActivityFromTrades(trades, limit), ...financingActivityFromHistory(history, limit)]
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
+    .slice(0, limit);
 }
 
 export function recentActivityFromTrades(trades: JournalTrade[], limit = 10): HomeActivityItem[] {

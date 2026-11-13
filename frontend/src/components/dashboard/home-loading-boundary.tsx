@@ -14,7 +14,9 @@ export function useHomeSectionReady(section: string, ready: boolean) {
 
 export function HomeLoadingBoundary({ ready, children }: { ready: boolean; children: ReactNode }) {
   const [state, report] = useReducer(updateHomeLoading, undefined, initialHomeLoadingState);
-  const visible = ready && state.revealed;
+  // `ready` is the balance; the reducer latches it so refreshes never re-hide Home.
+  useEffect(() => { report({ section: "account", ready }); }, [ready]);
+  const visible = state.revealed;
   return <HomeReadiness.Provider value={report}>
     <div data-home-ready={visible} style={{ position: "relative" }}>
       {!visible ? <HomeLoadingSkeleton /> : null}

@@ -13,7 +13,7 @@ import { CloseAllConfirmation, type CloseAllTarget } from "@/components/dashboar
 import { HomeLoadingBoundary } from "@/components/dashboard/home-loading-boundary";
 import { PendingLevelsDialog } from "@/components/dashboard/pending-levels-dialog";
 import {
-  recentActivityFromTrades,
+  recentAccountActivity,
   todayClosedStats,
 } from "@/lib/home/idle";
 import { apiUrl } from "@/lib/api/url";
@@ -252,7 +252,6 @@ export function DashboardView({
   // Kept for the Open-trades quote fallback below; the Watchlist section now
   // renders from the multi-strategy engine instead.
   const [watchlist, setWatchlist] = useState(initialWatchlist);
-  const [watchlistReady, setWatchlistReady] = useState(!initialLoading);
   const [overviewOpen, setOverviewOpen] = useState(() => initialOverview?.openTrades ?? initialOverview?.trades.filter(trade => trade.status === "open") ?? []);
   const [error, setError] = useState<string | null>(null);
   const [loadState, setLoadState] = useState<DashboardLoadState>(() => {
@@ -278,8 +277,6 @@ export function DashboardView({
   const [closeAllError, setCloseAllError] = useState<string | null>(null);
   // Streamed prices are used only for paper estimates and currency conversions.
   const quotes = useLiveQuotes();
-  // Real fills, so an open row reports the same money as the account hero.
-  const fillsLoading = loadState.account === "loading";
   const overviewOpenIds = new Set(overviewOpen.map((trade) => trade.id));
   // Manual trades live in the journal, not the strategy overview, so their open
   // ones must be pulled in here too — otherwise a filled manual entry shows in
@@ -346,10 +343,11 @@ export function DashboardView({
     if (loading.current.has("overview")) return;
     loading.current.add("overview");
     try {
-      // Fetch in parallel behind Home's first-load boundary. Later refreshes
-      // keep the visible page and its previously verified snapshots in place.
+      // Fetch in parallel; each section fills in as its own request lands.
+      // Later refreshes keep the visible page and its previously verified
+      // snapshots in place.
       const results = await Promise.allSettled([
-        dashboardData<{ watchlist: DashboardWatchRow[] }>("/api/watchlist").then(payload => setWatchlist(payload.watchlist)).finally(() => setWatchlistReady(true)),
+        dashboardData<{ watchlist: DashboardWatchRow[] }>("/api/watchlist").then(payload => setWatchlist(payload.watchlist)),
         dashboardData<{ trades: Trade[] }>("/api/paper-cycle/open-trades").then(payload => {
           setOverviewOpen(payload.trades); finishLoad("positions");
         }).catch(reason => { finishLoad("positions", true); throw reason; }),
@@ -598,7 +596,7 @@ export function DashboardView({
     };
   });
 
-  const recentActivity = recentActivityFromTrades(journalTrades, 10);
+  const recentActivity = recentAccountActivity(journalTrades, accountHistory, 10);
   const todayFromList = todayClosedStats(journalTrades, todayKey);
   // The API summary is authoritative when present; the list-derived figures are
   // the fallback so the card still reports a day with no summary payload.
@@ -626,7 +624,8 @@ export function DashboardView({
 
   return (
     <>
-      <HomeLoadingBoundary ready={watchlistReady && !fillsLoading && Object.values(loadState).every(state => state !== "loading")}>
+      {/* Only the balance blocks; other sections show their own placeholders. */}
+      <HomeLoadingBoundary ready={loadState.account !== "loading"}>
       <LedgerHome
         account={account}
         accountError={accountError}

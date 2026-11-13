@@ -7,10 +7,11 @@ import { ArrowRight, Search, X } from "lucide-react";
 import type { PendingManualEntry } from "@/types/pending-entry";
 import { activeEntryOrders, orderMatchesPair } from "@/lib/journal/active-orders";
 import { OrdersOverview, PendingOrders } from "./pending-orders";
-import type { JournalTrade } from "@/types/forex";
+import type { AccountBalanceHistoryPoint, JournalTrade } from "@/types/forex";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { apiUrl } from "@/lib/api/url";
 import { formatClockTime, formatShortDay } from "@/lib/format/datetime";
+import { displayTradeR } from "@/lib/risk-metrics";
 import {
   currentTradeLevels,
   openTradeProgress,
@@ -19,7 +20,7 @@ import {
 } from "@/lib/open-trade-progress";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import {
-  useOpenPositionFills,
+  useOpenPositionSnapshot,
   type OpenPositionFill,
 } from "@/lib/market-stream/use-open-positions";
 import { useSupplementalQuotes } from "@/lib/market-stream/use-supplemental-quotes";
@@ -203,8 +204,26 @@ function SideChip({ direction }: { direction: "long" | "short" }) {
   );
 }
 
-function RPill({ value }: { value: number | null | undefined }) {
-  return <span className={`nl-tr-rpill metric-number ${toneOf(value)}`}>{fmtR(value)}</span>;
+/**
+ * R for a closed trade: verified when the trade saved its planned risk,
+ * otherwise estimated from the original order's sizing (trades before risk
+ * plans were recorded). Estimated values are marked with "≈".
+ */
+function closedTradeR(trade: JournalTrade) {
+  const value = displayTradeR(trade);
+  const verified = trade.riskDataQuality === "verified" && value === trade.resultR;
+  return { value, estimated: value !== null && !verified };
+}
+
+function RPill({ value, estimated = false }: { value: number | null | undefined; estimated?: boolean }) {
+  return (
+    <span
+      className={`nl-tr-rpill metric-number ${toneOf(value)}`}
+      title={estimated ? "Estimated R: this trade didn't save its planned risk, so R is based on the original order's size" : undefined}
+    >
+      {estimated && value !== null && value !== undefined ? "≈" : ""}{fmtR(value)}
+    </span>
+  );
 }
 
 /** Bars for recent closed trades in R, oldest to newest, from a midline. */
@@ -438,7 +457,9 @@ function TradeRow({
   onSelect: () => void;
 }) {
   const isOpen = trade.status === "open";
-  const r = isOpen ? live?.openR ?? null : trade.resultR;
+  const closedR = closedTradeR(trade);
+  const r = isOpen ? live?.openR ?? null : closedR.value;
+  const rEstimated = !isOpen && closedR.estimated;
   const money = isOpen ? live?.money ?? null : trade.paperPl ?? null;
   return (
     <button
@@ -454,7 +475,7 @@ function TradeRow({
       <span className="nl-tr-muted nl-tr-hide-md">{strategyLabel(trade) ?? (trade.origin === "manual" ? "Manual" : "—")}</span>
       <span className="metric-number nl-tr-hide-sm">{fmtPrice(trade.entry, trade.pair)}</span>
       <span className="metric-number nl-tr-hide-sm">{fmtPrice(isOpen ? live?.current ?? null : trade.exit, trade.pair)}</span>
-      <RPill value={r} />
+      <RPill value={r} estimated={rEstimated} />
       <span className={`nl-tr-money metric-number ${toneOf(money)}`}>{fmtMoney(money, true) ?? "—"}</span>
       <span className="nl-tr-muted metric-number nl-tr-hide-md">
         {durationLabel(trade.openedAt, isOpen ? null : trade.closedAt)}
@@ -463,6 +484,46 @@ function TradeRow({
     </button>
   );
 }
+
+/**
+ * OANDA's 5 PM ET overnight interest (DAILY_FINANCING). Not a trade, so it is
+ * not selectable; it sits between trades by time to explain balance moves.
+ */
+function InterestRow({ point }: { point: AccountBalanceHistoryPoint }) {
+  return (
+    <div className="nl-tr-row is-static">
+      <span className="nl-tr-pair">
+        <b>Overnight interest</b>
+      </span>
+      <span className="nl-tr-muted nl-tr-hide-md">Financing</span>
+      <span className="nl-tr-muted nl-tr-hide-sm">—</span>
+      <span className="nl-tr-muted nl-tr-hide-sm">—</span>
+      <span className="nl-tr-rpill">Interest</span>
+      <span className={`nl-tr-money metric-number ${toneOf(point.change)}`}>{fmtMoney(point.change, true)}</span>
+      <span className="nl-tr-muted nl-tr-hide-md">—</span>
+      <span className="nl-tr-muted nl-tr-hide-md nl-tr-hide-sm">{dayAndTime(point.time)}</span>
+    </div>
+  );
+}
+
+function InterestCard({ point }: { point: AccountBalanceHistoryPoint }) {
+  return (
+    <div className="nl-tr-card is-static">
+      <span className="nl-tr-card-top">
+        <span className="nl-tr-pair">
+          <b>Overnight interest</b>
+        </span>
+        <span className={`nl-tr-money metric-number ${toneOf(point.change)}`}>{fmtMoney(point.change, true)}</span>
+      </span>
+      <span className="nl-tr-card-meta">
+        <span>Financing · {dayAndTime(point.time)}</span>
+        <span className="nl-tr-rpill">Interest</span>
+      </span>
+    </div>
+  );
+}
+
+type ListItem = { kind: "trade"; trade: JournalTrade } | { kind: "interest"; point: AccountBalanceHistoryPoint };
 
 function TradeCard({
   trade,
@@ -474,7 +535,9 @@ function TradeCard({
   onSelect: () => void;
 }) {
   const isOpen = trade.status === "open";
-  const r = isOpen ? live?.openR ?? null : trade.resultR;
+  const closedR = closedTradeR(trade);
+  const r = isOpen ? live?.openR ?? null : closedR.value;
+  const rEstimated = !isOpen && closedR.estimated;
   const money = isOpen ? live?.money ?? null : trade.paperPl ?? null;
   const strategy = strategyLabel(trade) ?? (trade.origin === "manual" ? "Manual" : null);
   const when = isOpen ? `opened ${dayAndTime(trade.openedAt)}` : dayAndTime(trade.closedAt);
@@ -489,7 +552,7 @@ function TradeCard({
       </span>
       <span className="nl-tr-card-meta">
         <span>{strategy ? `${strategy} · ${when}` : when}</span>
-        <RPill value={r} />
+        <RPill value={r} estimated={rEstimated} />
       </span>
     </button>
   );
@@ -508,7 +571,9 @@ function TradeDetail({
 }) {
   const isOpen = trade.status === "open";
   const money = isOpen ? live?.money ?? null : trade.paperPl ?? null;
-  const r = isOpen ? live?.openR ?? null : trade.resultR;
+  const closedR = closedTradeR(trade);
+  const r = isOpen ? live?.openR ?? null : closedR.value;
+  const rEstimated = !isOpen && closedR.estimated;
   const shownExit = isOpen ? live?.current ?? null : trade.exit;
   const lots = isOpen ? live?.lots ?? null : null;
   const href = chartHrefForTrade(trade);
@@ -548,7 +613,7 @@ function TradeDetail({
         ) : null}
         <span className="nl-tr-result-row">
           <span className="nl-tr-result-money">{fmtMoney(money, true) ?? "—"}</span>
-          <span className="nl-tr-result-r metric-number">{fmtR(r)}</span>
+          <span className="nl-tr-result-r metric-number">{rEstimated && r !== null ? "≈" : ""}{fmtR(r)}</span>
         </span>
       </div>
 
@@ -713,7 +778,13 @@ export function TradesView() {
     [summary?.openTrades],
   );
   const quotes = useSupplementalQuotes(openInstruments, liveQuotes);
-  const fills = useOpenPositionFills();
+  // One account-snapshot poll feeds both live fills and overnight interest
+  // (interest lives in the broker's balance history, not the journal).
+  const { fills, history: balanceHistory } = useOpenPositionSnapshot();
+  const interest = useMemo(
+    () => balanceHistory.filter((p) => p.type === "DAILY_FINANCING" && Math.abs(p.change) >= 0.005),
+    [balanceHistory],
+  );
 
   // Whole-journal aggregates + the full open-trade set (server computes both).
   const loadSummary = useCallback(async () => {
@@ -747,7 +818,9 @@ export function TradesView() {
       if (!reset) setLoadingMore(true);
       try {
         const res = await fetch(
-          apiUrl(`/api/journal/trades?limit=${PAGE_SIZE}&offset=${offset}&filter=all`),
+          // Stored rows now; the OANDA history import runs alongside and the
+          // next refresh picks up anything it adds.
+          apiUrl(`/api/journal/trades?limit=${PAGE_SIZE}&offset=${offset}&filter=all&sync=background`),
           { credentials: "include", cache: "no-store" },
         );
         if (!res.ok) throw new Error("unavailable");
@@ -876,6 +949,34 @@ export function TradesView() {
     }
     return list;
   }, [tab, openTrades, closedTrades, records, query, closedFilter]);
+
+  // History tabs interleave overnight interest by time. Only interest inside
+  // the span the loaded pages cover, so "Load more" doesn't leave every older
+  // interest row stacked at the bottom. Hidden when filtering by result/pair.
+  const items = useMemo<ListItem[]>(() => {
+    const trades: ListItem[] = rows.map((trade) => ({ kind: "trade", trade }));
+    if (tab === "open" || query.trim() || closedFilter !== "all") return trades;
+    const closedTimes = closedTrades.map((t) => Date.parse(t.closedAt ?? "")).filter(Number.isFinite);
+    const floor = hasMore && closedTimes.length ? Math.min(...closedTimes) : -Infinity;
+    const shown = interest.filter((p) => Date.parse(p.time) >= floor);
+    if (!shown.length) return trades;
+    const timeOf = (item: ListItem) =>
+      item.kind === "interest"
+        ? Date.parse(item.point.time)
+        : Date.parse((item.trade.status === "open" ? item.trade.openedAt : item.trade.closedAt) ?? "") || 0;
+    const merged: ListItem[] = [];
+    const extra = shown.map((point) => ({ kind: "interest" as const, point })).sort((a, b) => timeOf(b) - timeOf(a));
+    let i = 0;
+    for (const item of trades) {
+      // Open trades in "All" keep their place at the top.
+      if (item.kind === "trade" && item.trade.status !== "open") {
+        while (i < extra.length && timeOf(extra[i]) > timeOf(item)) merged.push(extra[i++]);
+      }
+      merged.push(item);
+    }
+    while (i < extra.length) merged.push(extra[i++]);
+    return merged;
+  }, [rows, tab, query, closedFilter, closedTrades, hasMore, interest]);
 
   // Keep a valid selection as the visible set changes (follows the list rather
   // than syncing an external system, so the direct setState is intentional).
@@ -1012,24 +1113,28 @@ export function TradesView() {
                 <span className="is-end nl-tr-hide-md nl-tr-hide-sm">{tab === "open" ? "Opened" : "Closed"}</span>
               </div>
               <div className="nl-tr-rows">
-                {rows.map((trade) => (
+                {items.map((item) => item.kind === "interest" ? (
+                  <InterestRow key={`interest-${item.point.id}`} point={item.point} />
+                ) : (
                   <TradeRow
-                    key={trade.id}
-                    trade={trade}
-                    live={liveFor(trade)}
-                    selected={trade.id === selectedId}
-                    onSelect={() => setSelectedId(trade.id)}
+                    key={item.trade.id}
+                    trade={item.trade}
+                    live={liveFor(item.trade)}
+                    selected={item.trade.id === selectedId}
+                    onSelect={() => setSelectedId(item.trade.id)}
                   />
                 ))}
               </div>
               <div className="nl-tr-cards">
-                {rows.map((trade) => (
+                {items.map((item) => item.kind === "interest" ? (
+                  <InterestCard key={`interest-${item.point.id}`} point={item.point} />
+                ) : (
                   <TradeCard
-                    key={trade.id}
-                    trade={trade}
-                    live={liveFor(trade)}
+                    key={item.trade.id}
+                    trade={item.trade}
+                    live={liveFor(item.trade)}
                     onSelect={() => {
-                      setSelectedId(trade.id);
+                      setSelectedId(item.trade.id);
                       setSheetOpen(true);
                     }}
                   />

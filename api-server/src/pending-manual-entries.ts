@@ -765,6 +765,7 @@ export async function createPendingManualEntry(userId: string, payload: Record<s
       sizeChoice === null ? null : JSON.stringify(sizeChoice)],
   );
   const entryRow = result.rows[0]!;
+  markManualWorkArmed(tick.instrument);
   // Scheduled ("submit after") entry: stay dormant until the activation job runs
   // at activate_at. Do NOT place the OANDA order now, and flag it so the price
   // monitor leaves it alone until it becomes broker-backed.
@@ -1247,6 +1248,49 @@ async function finalizeTriggeredEntry(id: string) {
   }
 }
 
+/**
+ * Which pairs have anything for the per-tick monitor to do: a PENDING manual
+ * entry or an open manual paper trade. The tick loop used to open a database
+ * transaction for every pair several times a second even when nothing was
+ * armed. This cached set lets it skip those pairs.
+ *
+ * The set is a superset (it ignores the scheduled/news/broker filters the
+ * real queries apply), refreshed by one query at most every ARMED_REFRESH_MS,
+ * and creation paths mark their pair at once so a new entry is never skipped
+ * while a refresh is in flight. If the refresh fails, every pair is checked.
+ */
+const ARMED_REFRESH_MS = 2_000;
+const ARMED_PIN_MS = 10_000;
+let armedInstruments: Set<string> | null = null;
+let armedLoadedAt = 0;
+let armedRefresh: Promise<void> | null = null;
+const armedPins = new Map<string, number>();
+
+export function markManualWorkArmed(instrument: string) {
+  armedPins.set(instrument, Date.now());
+  armedInstruments?.add(instrument);
+}
+
+export async function hasArmedManualWork(instrument: string): Promise<boolean> {
+  if (Date.now() - armedLoadedAt >= ARMED_REFRESH_MS) {
+    armedRefresh ??= query<{ instrument: string }>(
+      `SELECT instrument FROM pending_manual_entries WHERE status='PENDING'
+       UNION
+       SELECT replace(pair,'/','_') FROM paper_trades WHERE origin='manual' AND status='open'`,
+    )
+      .then((result) => { armedInstruments = new Set(result.rows.map((row) => row.instrument)); })
+      .catch((error) => { armedInstruments = null; console.error("[pending-entry] armed-pair refresh failed; checking every pair", error); })
+      .finally(() => { armedLoadedAt = Date.now(); armedRefresh = null; });
+    await armedRefresh;
+  }
+  const pinnedAt = armedPins.get(instrument);
+  if (pinnedAt !== undefined) {
+    if (Date.now() - pinnedAt < ARMED_PIN_MS) return true;
+    armedPins.delete(instrument);
+  }
+  return armedInstruments === null || armedInstruments.has(instrument);
+}
+
 export async function evaluatePendingManualEntries(tick: MarketPriceTick) {
   if (!(tick.bid > 0) || !(tick.ask > 0)) return { changed: 0 };
   const { claimed, toCancel, terminal } = await transaction(async (client) => {
@@ -1422,6 +1466,7 @@ async function openFilledManualTrade(entry: EntryRow, brokerTradeId: string, fil
   const sizingStop = meta?.sizingStop === undefined || meta.sizingStop === null ? null : numberOrNull(String(meta.sizingStop));
   const stop = activeStop ?? sizingStop ?? openPrice;
   const target = activeTarget ?? openPrice;
+  markManualWorkArmed(entry.instrument);
   const opened = await transaction(async (client) => {
     const locked = await client.query<EntryRow>(`SELECT ${SELECT_FIELDS} FROM pending_manual_entries WHERE id=$1 FOR UPDATE`, [entry.id]);
     if (locked.rows[0]?.status !== "PENDING") return null;

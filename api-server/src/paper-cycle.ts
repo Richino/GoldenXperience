@@ -43,7 +43,6 @@ import { EURAUD_STRATEGY_ID, resolveEuraudExit } from "../../frontend/src/lib/st
 import { NZDJPY_STRATEGY_ID, resolveNzdjpyExit } from "../../frontend/src/lib/strategy/strategies/nzdjpy-strategy.js";
 import type { FrozenH1ExitInput, FrozenH1ExitResult } from "../../frontend/src/lib/strategy/strategies/frozen-h1-pair.js";
 import { decideInstrument, loadAdaptiveEvidence, toAdaptiveCandidate } from "./adaptive-engine.js";
-import { resolveShadowOutcome } from "./shadow-outcomes.js";
 import { recordMomentumShortPair, resolveMomentumShortInversion } from "./momentum-short-inversion.js";
 import { applyMomentumInversion, ensureMomentumInversionActivation, MOMENTUM_INVERSION_EXPERIMENT } from "./momentum-inversion.js";
 import { tagNewTradeSafely } from "./news-tagging.js";
@@ -2411,96 +2410,6 @@ async function logAdaptiveDecision(experimentId: string, instrument: string, dec
   );
 }
 
-/**
- * Resolve hypothetical outcomes for suppressed/blocked valid candidates.
- *
- * Only candidates that were valid but not executed are considered, and only ones
- * without an outcome yet. Candles are fetched once per instrument (the same
- * source and completed-candle filter the live resolver uses) and each candidate
- * is labelled with the pure `resolveShadowOutcome`, which returns null while the
- * outcome is not yet known. Nothing here places an order, opens a position, or
- * reads/writes risk — it only writes shadow_candidate_outcomes.
- *
- * THE EXECUTED-ARM GUARD. `execution_status` alone was never a safe test for
- * "this did not trade". The status is written BEFORE execution is attempted and
- * promoted to 'selected' only on a confirmed insert — and when that promoting
- * UPDATE silently matched zero rows, 48 real trades stayed filed as 'blocked'
- * and were handed a hypothetical outcome on top of the real one they already
- * had. The engine then counted the same opportunity twice, disagreeing with
- * itself in five cases.
- *
- * So the guard below does not trust a status column. It asks the trade ledger
- * directly, three independent ways: no evaluation that backs a trade
- * (`evaluation_id`), no evaluation that names one (`paper_trade_id` /
- * `trade_created`), and no trade sitting on the same (instrument, bar, family).
- * Any one of those being true is enough to disqualify the row, so a future drift
- * in any single marker cannot resurrect the defect.
- */
-async function resolveShadowCandidates(): Promise<number> {
-  const pending = await query<{ id: string; instrument: MajorInstrument; direction: "long" | "short"; entry: string; stop: string; target: string; decision_time: string | Date; spread_pips: string | null }>(
-    `SELECT evaluation.id, evaluation.instrument, evaluation.direction, evaluation.entry::text, evaluation.stop::text, evaluation.target::text, evaluation.decision_time, evaluation.spread_pips::text
-       FROM paper_strategy_evaluations evaluation
-       LEFT JOIN shadow_candidate_outcomes shadow ON shadow.evaluation_id = evaluation.id
-      WHERE evaluation.strategy_family IS NOT NULL
-        AND evaluation.strategy_family = ANY($1::text[])
-        AND evaluation.execution_status IN ('suppressed','blocked')
-        AND evaluation.setup_status = 'valid'
-        AND evaluation.direction IS NOT NULL
-        AND evaluation.entry IS NOT NULL AND evaluation.stop IS NOT NULL AND evaluation.target IS NOT NULL
-        AND shadow.evaluation_id IS NULL
-        AND evaluation.paper_trade_id IS NULL
-        AND evaluation.trade_created = false
-        AND NOT EXISTS (SELECT 1 FROM paper_strategy_trades linked WHERE linked.evaluation_id = evaluation.id)
-        AND NOT EXISTS (
-          SELECT 1 FROM paper_strategy_trades traded
-           WHERE traded.instrument = evaluation.instrument
-             AND traded.decision_time = evaluation.decision_time
-             AND traded.strategy_family = evaluation.strategy_family)
-      ORDER BY evaluation.instrument
-      LIMIT 300`,
-    [STRATEGY_FAMILIES],
-  );
-  if (!pending.rows.length) return 0;
-
-  const byInstrument = new Map<MajorInstrument, typeof pending.rows>();
-  for (const row of pending.rows) byInstrument.set(row.instrument, [...(byInstrument.get(row.instrument) ?? []), row]);
-
-  const now = new Date();
-  let resolved = 0;
-  for (const [instrument, rows] of byInstrument) {
-    let quotes: NormalizedQuote[];
-    try {
-      const candles = (await getResearchCandles(instrument, "M15", 500)).filter((candle) => candle.complete);
-      quotes = candles.map(toQuote);
-    } catch { continue; }
-    for (const row of rows) {
-      const decisionTime = iso(row.decision_time);
-      const future = quotes.filter((quote) => new Date(quote.closeTime) > new Date(decisionTime));
-      if (!future.length) continue;
-      const outcome = resolveShadowOutcome(row.direction, Number(row.entry), Number(row.stop), Number(row.target), decisionTime, future, now);
-      if (!outcome) continue; // still pending — its outcome is not known yet
-      // The shadow arm crosses the same spread a real fill would have: its entry
-      // is the executable side of the book at the decision and labelOutcome
-      // resolves it against the other side. Recording the decomposition here
-      // keeps a shadow observation comparable with an executed one on cost, not
-      // only on outcome.
-      const spreadCost = spreadCostR({
-        instrument: row.instrument, entry: Number(row.entry), stop: Number(row.stop),
-        spreadPips: row.spread_pips === null ? null : Number(row.spread_pips),
-      });
-      const grossR = outcome.resultR === null || spreadCost === null ? null : outcome.resultR + spreadCost;
-      await query(
-        `INSERT INTO shadow_candidate_outcomes(evaluation_id,outcome,result_r,max_favorable_r,max_adverse_r,exit,resolved_at,horizon_ends_at,exit_reason,spread_cost_r,total_cost_r,gross_result_r,net_result_r,cost_basis)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10,$11,$3,$12) ON CONFLICT(evaluation_id) DO NOTHING`,
-        [row.id, outcome.outcome, outcome.resultR, outcome.maxFavorableR, outcome.maxAdverseR, outcome.exit, outcome.resolvedAt, outcome.horizonEndsAt, outcome.exitReason,
-         spreadCost, grossR, spreadCost === null ? "unknown" : "spread_only"],
-      );
-      resolved += 1;
-    }
-  }
-  return resolved;
-}
-
 export async function collectMultiStrategyCycle() {
   const owner = await query<{ id: string }>("SELECT id FROM users WHERE role='owner' ORDER BY created_at LIMIT 1");
   if (!owner.rows[0]) return { opened: 0, resolved: 0, reason: "Owner account is unavailable" };
@@ -2515,10 +2424,6 @@ export async function collectMultiStrategyCycle() {
   } catch (error) { console.error("[eur-usd-move-gate-v1] shadow cycle failed", error); }
   try { resolved = await resolveOpenTrades(); }
   catch (error) { console.error("[multi-strategy] outcome refresh failed", error); }
-  // Resolve hypothetical outcomes for suppressed/blocked valid candidates. Pure
-  // research: reads candles, writes shadow_candidate_outcomes, never OANDA/risk.
-  try { const shadow = await resolveShadowCandidates(); if (shadow) console.log(`[multi-strategy] resolved ${shadow} shadow candidates`); }
-  catch (error) { console.error("[multi-strategy] shadow resolution failed", error); }
   // Same contract for the Momentum SHORT inversion forward test: both arms are
   // replayed independently against real bid/ask, written to their own research
   // table, and never surfaced to risk or the adaptive engine.

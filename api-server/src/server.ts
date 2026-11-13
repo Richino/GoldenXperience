@@ -91,6 +91,7 @@ import {
   editPendingManualEntry,
   evaluatePendingManualEntries,
   expirePendingManualEntries,
+  hasArmedManualWork,
   pendingManualEntriesForUser,
   recoverTriggeringManualEntries,
   resolveOpenManualTrades,
@@ -110,6 +111,11 @@ import type { SwingStyle } from "../../frontend/src/lib/swing-intelligence.js";
 // the active forex collector. Default on; set MULTISTRATEGY_ENABLED=false to roll
 // back to the preserved liquidity strategy.
 const MULTISTRATEGY_ENABLED = (process.env.MULTISTRATEGY_ENABLED ?? "true").toLowerCase() !== "false";
+// The automated strategy collector (multi-strategy engine, adaptive engine and
+// its research add-ons) is OFF by default: it scored ~5,400 candidates a day
+// and had opened no trade since 2026-09-25. Set PAPER_COLLECTOR_ENABLED=true to
+// run it again. The economic-calendar ingest in the same loop keeps running.
+const PAPER_COLLECTOR_ENABLED = (process.env.PAPER_COLLECTOR_ENABLED ?? "false").toLowerCase() === "true";
 
 const STREAM_INSTRUMENTS: MajorInstrument[] = [...MAJOR_INSTRUMENTS];
 
@@ -1500,11 +1506,17 @@ function handlePrice(tick: MarketPriceTick) {
   if (now - (pendingEntryLastCheck.get(tick.instrument) ?? 0) < 250) return;
   pendingEntryLastCheck.set(tick.instrument, now);
   pendingEntryChecks.add(tick.instrument);
-  void evaluatePendingManualEntries(tick)
-    // Also square any open manual (paper) trade whose stop or target this tick
-    // reached — manual trades have no other resolver, so they would otherwise
-    // stay open forever.
-    .then(() => resolveOpenManualTrades(tick))
+  // Skip the database entirely for pairs with no pending entry or open manual
+  // trade — most pairs, most of the time.
+  void hasArmedManualWork(tick.instrument)
+    .then(async (armed) => {
+      if (!armed) return;
+      await evaluatePendingManualEntries(tick);
+      // Also square any open manual (paper) trade whose stop or target this tick
+      // reached — manual trades have no other resolver, so they would otherwise
+      // stay open forever.
+      await resolveOpenManualTrades(tick);
+    })
     .catch((error) => console.error(`[pending-entry] ${tick.instrument} evaluation failed`, error))
     .finally(() => pendingEntryChecks.delete(tick.instrument));
 }
@@ -1675,6 +1687,10 @@ if (databaseConfigured() && schedulersEnabled) {
     } catch (error) {
       console.error("[calendar-ingest] skipped", error);
     }
+    if (!PAPER_COLLECTOR_ENABLED) {
+      collectionBusy = false;
+      return;
+    }
     try {
       // The multi-strategy + adaptive engine is the active collector. Set
       // MULTISTRATEGY_ENABLED=false to fall back to the retired-but-preserved
@@ -1701,6 +1717,7 @@ if (databaseConfigured() && schedulersEnabled) {
       collectionBusy = false;
     }
   };
+  if (!PAPER_COLLECTOR_ENABLED) console.log("[paper-cycle] strategy collector OFF (PAPER_COLLECTOR_ENABLED is not true) — calendar ingest only");
   void collect();
   paperCollector = setInterval(() => void collect(), 60_000);
 

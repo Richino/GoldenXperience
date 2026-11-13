@@ -1,5 +1,6 @@
 "use client";
 
+import { tabVisible } from "@/lib/visible";
 import { useEffect, useState } from "react";
 import { apiUrl } from "@/lib/api/url";
 import { formatChartPrice } from "@/lib/chart-utils";
@@ -70,7 +71,7 @@ export function TradeHealthPanel({ instrument, active }: { instrument: string; a
       }
     };
     void load();
-    const timer = window.setInterval(load, POLL_MS);
+    const timer = window.setInterval(() => { if (tabVisible()) void load(); }, POLL_MS);
     return () => {
       cancelled = true;
       window.clearInterval(timer);

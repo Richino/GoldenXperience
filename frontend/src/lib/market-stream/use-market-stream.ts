@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { MajorInstrument, PriceQuote } from "@/types/forex";
 import { apiUrl } from "@/lib/api/url";
 import { getWebSocketUrl } from "@/lib/market-stream/socket-url";
+import { HIDDEN_DISCONNECT_MS } from "@/lib/market-stream/use-live-quotes";
 import type {
   MarketPriceTick,
   MarketStreamState,
@@ -70,6 +71,8 @@ export function useMarketStream(
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const closedByUnmountRef = useRef(false);
+  /** Socket dropped because the tab was hidden; reconnects when visible. */
+  const pausedRef = useRef(false);
   const lastMessageAtRef = useRef(0);
   const trackPriceRef = useRef(options.trackPrice ?? true);
   /** Pairs the server streams (from its status message); null until known. */
@@ -223,7 +226,7 @@ export function useMarketStream(
       });
 
       socket.addEventListener("close", () => {
-        if (closedByUnmountRef.current) {
+        if (closedByUnmountRef.current || pausedRef.current) {
           return;
         }
 
@@ -263,8 +266,27 @@ export function useMarketStream(
     // itself throttled while hidden — so on reopen the stream can sit dead for
     // seconds before a tick notices. Force it back to a good connection the
     // moment the app returns to the foreground.
+    let hiddenTimer: ReturnType<typeof setTimeout> | null = null;
     function onForeground() {
-      if (document.visibilityState !== "visible") return;
+      if (document.visibilityState !== "visible") {
+        // A hidden tab would otherwise receive every tick all day. Drop the
+        // socket after a short grace; returning reconnects at once below.
+        if (!hiddenTimer && !pausedRef.current) {
+          hiddenTimer = setTimeout(() => {
+            hiddenTimer = null;
+            if (document.visibilityState === "visible") return;
+            pausedRef.current = true;
+            clearReconnectTimer();
+            socketRef.current?.close(4001, "hidden");
+          }, HIDDEN_DISCONNECT_MS);
+        }
+        return;
+      }
+      if (hiddenTimer) {
+        clearTimeout(hiddenTimer);
+        hiddenTimer = null;
+      }
+      pausedRef.current = false;
       const socket = socketRef.current;
       const stale =
         lastMessageAtRef.current > 0 &&
@@ -327,6 +349,7 @@ export function useMarketStream(
     return () => {
       closedByUnmountRef.current = true;
       clearReconnectTimer();
+      if (hiddenTimer) clearTimeout(hiddenTimer);
       window.clearInterval(staleCheckTimer);
       window.clearInterval(restTimer);
       document.removeEventListener("visibilitychange", onForeground);

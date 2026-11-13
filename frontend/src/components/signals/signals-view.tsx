@@ -1,5 +1,6 @@
 "use client";
 
+import { tabVisible } from "@/lib/visible";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Eye, SlidersHorizontal, Zap } from "lucide-react";
@@ -247,7 +248,7 @@ export function SignalsView({
   }, []);
 
   useEffect(() => {
-    const timer = window.setInterval(() => void refresh(), 60_000);
+    const timer = window.setInterval(() => { if (tabVisible()) void refresh(); }, 60_000);
     return () => window.clearInterval(timer);
   }, [refresh]);
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { tabVisible } from "@/lib/visible";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CalendarClock } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
@@ -86,7 +87,7 @@ export function BrokerNewsStraddleTicket({ header, instrument, bid, ask, creatio
       finally { pending = false; }
     };
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 5000);
+    const timer = window.setInterval(() => { if (tabVisible()) void refresh(); }, 5000);
     return () => { active = false; clearInterval(timer); };
   }, []);
   const release = useMemo(() => calendar.connected && calendar.source === "forex_factory" && now !== null
@@ -191,7 +192,7 @@ export function BrokerNewsSetupStatus({ entry, bid, ask }: { entry: PendingManua
   const id = String(entry.metadata.straddleId ?? ""), now = useDisplayClock();
   const [run, setRun] = useState<PublicNewsRun | null>(() => entry.metadata.newsRun as PublicNewsRun | undefined ?? null);
   const [error, setError] = useState<string | null>(null), [confirm, setConfirm] = useState(false), [busy, setBusy] = useState(false);
-  useEffect(() => { let active = true, pending = false; const refresh = async () => { if (pending) return; pending = true; try { const next = await request<PublicNewsRun>(`/api/news-straddles/${id}`); if (active) { setRun(next); setError(null); } } catch { if (active) setError("Status refresh is unavailable. Displaying the last saved broker observations."); } finally { pending = false; } }; void refresh(); const t = window.setInterval(() => void refresh(), 1000); return () => { active = false; clearInterval(t); }; }, [id]);
+  useEffect(() => { let active = true, pending = false; const refresh = async () => { if (pending) return; pending = true; try { const next = await request<PublicNewsRun>(`/api/news-straddles/${id}`); if (active) { setRun(next); setError(null); } } catch { if (active) setError("Status refresh is unavailable. Displaying the last saved broker observations."); } finally { pending = false; } }; void refresh(); const t = window.setInterval(() => { if (tabVisible()) void refresh(); }, 1000); return () => { active = false; clearInterval(t); }; }, [id]);
   async function stop() { setBusy(true); try { await request(`/api/news-straddles/${id}`, { method: "DELETE" }); setConfirm(false); } catch (e) { setError(e instanceof Error ? e.message : "Cancellation could not be requested."); } finally { setBusy(false); } }
   if (!run) return <p className={styles.note}>{error ?? "Loading broker setup status…"}</p>;
   return <><NewsV3StatusView run={run} now={now} bid={bid} ask={ask} />{error ? <p className={styles.warning} role="status">{error}</p> : null}{!NEWS_TERMINAL.includes(run.state) ? <div className={styles.stop}>

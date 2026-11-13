@@ -1,5 +1,6 @@
 "use client";
 
+import { tabVisible } from "@/lib/visible";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ToastAction } from "@/components/ui/toast";
@@ -110,7 +111,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     // Trade state changes should feel live while the workspace is open. Event
     // IDs and the server dedupe key prevent a polling refresh from replaying a
     // notification that was already presented.
-    const interval = window.setInterval(() => void refresh(), 10_000);
+    const interval = window.setInterval(() => { if (tabVisible()) void refresh(); }, 10_000);
     return () => window.clearInterval(interval);
   }, [refresh]);
 

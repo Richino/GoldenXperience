@@ -1418,10 +1418,58 @@ function shouldSend(socket: WebSocket, tick: MarketPriceTick) {
   return !requested || requested.size === 0 || requested.has(tick.instrument);
 }
 
+// Sockets that follow many pairs at once (Home, Trades, Signals, Watchlist
+// valuing open trades) ask for at most one price per pair per `ms`. They were
+// the largest share of Railway egress: every tick of every pair, all day.
+// The newest skipped tick is held and sent when the window opens, so the last
+// price a throttled view shows is never older than `ms`.
+type PriceThrottle = { ms: number; lastSent: Map<string, number>; pending: Map<string, MarketPriceTick> };
+const priceThrottles = new WeakMap<WebSocket, PriceThrottle>();
+const PRICE_THROTTLE_MIN_MS = 250;
+const PRICE_THROTTLE_MAX_MS = 10_000;
+
+function sendPrice(socket: WebSocket, tick: MarketPriceTick) {
+  const throttle = priceThrottles.get(socket);
+  if (!throttle) return send(socket, tick);
+  const now = Date.now();
+  if (now - (throttle.lastSent.get(tick.instrument) ?? 0) >= throttle.ms) {
+    throttle.lastSent.set(tick.instrument, now);
+    throttle.pending.delete(tick.instrument);
+    send(socket, tick);
+  } else {
+    throttle.pending.set(tick.instrument, tick);
+  }
+}
+
+function flushThrottledPrices() {
+  const now = Date.now();
+  for (const socket of wss.clients) {
+    const throttle = priceThrottles.get(socket);
+    if (!throttle?.pending.size) continue;
+    for (const [instrument, tick] of throttle.pending) {
+      if (now - (throttle.lastSent.get(instrument) ?? 0) < throttle.ms) continue;
+      throttle.pending.delete(instrument);
+      if (!shouldSend(socket, tick)) continue;
+      throttle.lastSent.set(instrument, now);
+      send(socket, tick);
+    }
+  }
+}
+
 function broadcast(message: MarketStreamMessage) {
   for (const socket of wss.clients) {
-    if (socket.readyState === WebSocket.OPEN && (message.type !== "price" || shouldSend(socket, message))) send(socket, message);
+    if (socket.readyState !== WebSocket.OPEN) continue;
+    if (message.type !== "price") send(socket, message);
+    else if (shouldSend(socket, message)) sendPrice(socket, message);
   }
+}
+
+function parseThrottleMessage(value: WebSocket.RawData): number | null {
+  try {
+    const parsed = JSON.parse(value.toString()) as { type?: string; ms?: unknown };
+    if (parsed.type !== "throttle" || typeof parsed.ms !== "number" || !Number.isFinite(parsed.ms)) return null;
+    return Math.max(0, Math.min(PRICE_THROTTLE_MAX_MS, Math.round(parsed.ms)));
+  } catch { return null; }
 }
 
 /** Private analysis events use the existing socket, with session checks per batch.
@@ -1464,7 +1512,19 @@ const server = createServer((request, response) => {
     json(request, response, { error: "Internal server error." }, 500);
   });
 });
-const wss = new WebSocketServer({ noServer: true });
+// permessage-deflate: price frames are ~220 bytes of near-identical JSON, so
+// with the shared context they shrink several-fold. threshold 0 because the
+// default (1 KB) would skip every tick. A small window and fast level keep the
+// per-socket memory and CPU cost low.
+const wss = new WebSocketServer({
+  noServer: true,
+  perMessageDeflate: {
+    threshold: 0,
+    zlibDeflateOptions: { level: 1, memLevel: 4 },
+    serverMaxWindowBits: 11,
+    concurrencyLimit: 4,
+  },
+});
 
 currentStatus = {
   type: "status", state: config.isConfigured ? "connecting" : "mock", source: config.isConfigured ? "oanda" : "mock",
@@ -1488,7 +1548,11 @@ wss.on("connection", (socket, request) => {
   socket.on("pong", () => clientAlive.set(socket, true));
   socket.on("message", (value) => {
     const requested = parseSubscribeMessage(value);
-    if (requested) subscriptions.set(socket, new Set(requested));
+    if (requested) { subscriptions.set(socket, new Set(requested)); return; }
+    const throttleMs = parseThrottleMessage(value);
+    if (throttleMs === null) return;
+    if (throttleMs < PRICE_THROTTLE_MIN_MS) priceThrottles.delete(socket);
+    else priceThrottles.set(socket, { ms: throttleMs, lastSent: new Map(), pending: new Map() });
   });
   socket.on("close", () => { subscriptions.delete(socket); });
 });
@@ -1501,6 +1565,8 @@ const heartbeat = setInterval(() => {
   }
   broadcast({ type: "heartbeat", source: currentStatus.source, time: new Date().toISOString() });
 }, 10_000);
+const throttleFlush = setInterval(flushThrottledPrices, PRICE_THROTTLE_MIN_MS);
+throttleFlush.unref();
 
 const pendingEntryChecks = new Set<MajorInstrument>();
 const pendingEntryLastCheck = new Map<MajorInstrument, number>();
@@ -1987,6 +2053,7 @@ function shutdown() {
   const recordingClosed = marketRecorder?.close() ?? Promise.resolve();
   const observerClosed = marketObserver?.stop() ?? Promise.resolve();
   clearInterval(heartbeat);
+  clearInterval(throttleFlush);
   clearInterval(candleCacheCleanup);
   if (morningScanner) clearInterval(morningScanner);
   stopDurableResearchWorker?.();

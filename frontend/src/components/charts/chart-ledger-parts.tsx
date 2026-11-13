@@ -6,6 +6,7 @@
  * Layout lives in night-ledger.css (`nl-chart-*`).
  */
 
+import { tabVisible } from "@/lib/visible";
 import { useEffect, useState, type ReactNode } from "react";
 import { Activity, MoveVertical, Plus, X } from "lucide-react";
 import { NewsImpactSheet, type NewsImpactPosition } from "@/components/dashboard/news-impact-sheet";
@@ -217,7 +218,7 @@ export function ChartHealthCard({
       }
     };
     void load();
-    const timer = window.setInterval(load, MONITOR_POLL_MS);
+    const timer = window.setInterval(() => { if (tabVisible()) void load(); }, MONITOR_POLL_MS);
     return () => {
       cancelled = true;
       window.clearInterval(timer);

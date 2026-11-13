@@ -1,5 +1,6 @@
 "use client";
 
+import { tabVisible } from "@/lib/visible";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { apiUrl } from "@/lib/api/url";
@@ -65,7 +66,7 @@ export function ForwardView() {
 
   useEffect(() => {
     void load().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Paper cycle unavailable."));
-    const timer = window.setInterval(() => void load().catch(() => undefined), 60_000);
+    const timer = window.setInterval(() => { if (tabVisible()) void load().catch(() => undefined); }, 60_000);
     return () => window.clearInterval(timer);
   }, [load]);
 

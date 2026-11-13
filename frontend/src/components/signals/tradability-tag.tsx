@@ -1,5 +1,6 @@
 "use client";
 
+import { tabVisible } from "@/lib/visible";
 import { useEffect, useMemo, useState } from "react";
 import { apiUrl } from "@/lib/api/url";
 import {
@@ -56,7 +57,7 @@ export function useNyTradability(instruments: readonly string[], enabled: boolea
       }
     };
     load();
-    const refresh = window.setInterval(load, REFRESH_MS);
+    const refresh = window.setInterval(() => { if (tabVisible()) load(); }, REFRESH_MS);
     const tick = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => {
       controller.abort();

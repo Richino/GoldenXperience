@@ -1,5 +1,6 @@
 "use client";
 
+import { tabVisible } from "@/lib/visible";
 import { useEffect, useState } from "react";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { apiUrl } from "@/lib/api/url";
@@ -125,7 +126,7 @@ export function usePairStrength(enabled: boolean, refreshMs?: number) {
         });
     };
     load();
-    const timer = refreshMs ? window.setInterval(load, refreshMs) : undefined;
+    const timer = refreshMs ? window.setInterval(() => { if (tabVisible()) load(); }, refreshMs) : undefined;
     return () => {
       controller.abort();
       window.clearInterval(timer);

@@ -1,5 +1,6 @@
 "use client";
 
+import { tabVisible } from "@/lib/visible";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Crosshair } from "lucide-react";
@@ -85,7 +86,7 @@ export function AutomateButton({ instrument, className, onPlaced }: { instrument
 
   useEffect(() => {
     void refresh();
-    const timer = window.setInterval(() => void refresh(), open ? 15_000 : 60_000);
+    const timer = window.setInterval(() => { if (tabVisible()) void refresh(); }, open ? 15_000 : 60_000);
     return () => window.clearInterval(timer);
   }, [open, refresh]);
 

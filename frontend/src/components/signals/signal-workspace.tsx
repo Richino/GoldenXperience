@@ -1,5 +1,6 @@
 "use client";
 
+import { tabVisible } from "@/lib/visible";
 import { dailyPriceChange, dailyChangeLabel, dailyChangePercentLabel } from "@/lib/oanda/price-change";
 import { candleEnd, candleHealth } from "@/lib/strategy/candle-clock";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -3333,7 +3334,7 @@ export function SignalWorkspace({
       busy = true;
       try { await refreshMarketQuietly(); } finally { busy = false; }
     };
-    const timer = window.setInterval(() => void refreshClosedBar(), 15_000);
+    const timer = window.setInterval(() => { if (tabVisible()) void refreshClosedBar(); }, 15_000);
     return () => window.clearInterval(timer);
   }, [enabledIndicators, replayActive, instrument, refreshMarketQuietly]);
 

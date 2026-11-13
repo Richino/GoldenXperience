@@ -9,6 +9,10 @@ export interface LiveQuote {
 }
 
 const STALE_STREAM_AFTER_MS = 15_000;
+/** One price per pair per second is plenty for valuing open trades. */
+const QUOTE_THROTTLE_MS = 1_000;
+/** A tab hidden this long drops its socket; it reconnects on return. */
+export const HIDDEN_DISCONNECT_MS = 30_000;
 
 /**
  * Live bid/ask for every streamed pair, keyed by OANDA code.
@@ -35,6 +39,10 @@ export function useLiveQuotes() {
     let attempt = 0;
     let closedByUnmount = false;
     let lastMessageAt = 0;
+    // Hidden tabs would otherwise receive every tick all day — the largest
+    // share of the API's network egress. A paused socket waits for visibility.
+    let paused = false;
+    let hiddenTimer: ReturnType<typeof setTimeout> | null = null;
 
     const clearReconnectTimer = () => {
       if (reconnectTimer) {
@@ -51,8 +59,10 @@ export function useLiveQuotes() {
         return;
       }
 
-      socket.onopen = () => {
+      const opened = socket;
+      opened.onopen = () => {
         attempt = 0;
+        opened.send(JSON.stringify({ type: "throttle", ms: QUOTE_THROTTLE_MS }));
       };
 
       socket.onmessage = (event) => {
@@ -84,7 +94,7 @@ export function useLiveQuotes() {
       };
 
       socket.onclose = () => {
-        if (closedByUnmount) return;
+        if (closedByUnmount || paused) return;
         attempt += 1;
         reconnectTimer = setTimeout(
           connect,
@@ -96,7 +106,23 @@ export function useLiveQuotes() {
     };
 
     const onForeground = () => {
-      if (document.visibilityState !== "visible") return;
+      if (document.visibilityState !== "visible") {
+        if (!hiddenTimer && !paused) {
+          hiddenTimer = setTimeout(() => {
+            hiddenTimer = null;
+            if (document.visibilityState === "visible") return;
+            paused = true;
+            clearReconnectTimer();
+            socket?.close(4001, "hidden");
+          }, HIDDEN_DISCONNECT_MS);
+        }
+        return;
+      }
+      if (hiddenTimer) {
+        clearTimeout(hiddenTimer);
+        hiddenTimer = null;
+      }
+      paused = false;
       const stale =
         lastMessageAt > 0 && Date.now() - lastMessageAt > STALE_STREAM_AFTER_MS;
 
@@ -116,6 +142,7 @@ export function useLiveQuotes() {
     return () => {
       closedByUnmount = true;
       clearReconnectTimer();
+      if (hiddenTimer) clearTimeout(hiddenTimer);
       document.removeEventListener("visibilitychange", onForeground);
       window.removeEventListener("focus", onForeground);
       socket?.close();

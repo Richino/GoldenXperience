@@ -1,5 +1,6 @@
 "use client";
 
+import { tabVisible } from "@/lib/visible";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { apiUrl } from "@/lib/api/url";
 import { formatClockTime } from "@/lib/format/datetime";
@@ -57,7 +58,7 @@ export function CloseConditionsForm({ entry, onChanged }: { entry: PendingManual
       } finally { busy = false; }
     };
     void load();
-    const timer = window.setInterval(() => void load(), 5_000);
+    const timer = window.setInterval(() => { if (tabVisible()) void load(); }, 5_000);
     return () => { disposed = true; controller?.abort(); window.clearInterval(timer); };
   }, [applySettings, endpoint]);
 

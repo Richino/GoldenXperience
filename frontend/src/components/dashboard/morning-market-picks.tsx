@@ -1,5 +1,6 @@
 "use client";
 
+import { tabVisible } from "@/lib/visible";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowUpRight } from "lucide-react";
@@ -176,7 +177,7 @@ export function MorningMarketPicks({ initial }: { initial: MorningPicksSnapshot 
       } catch { /* the section stays hidden until a read succeeds */ }
     };
     void read();
-    const timer = window.setInterval(read, 15 * 60_000);
+    const timer = window.setInterval(() => { if (tabVisible()) void read(); }, 15 * 60_000);
     return () => { controller.abort(); window.clearInterval(timer); };
   }, []);
   useEffect(() => {
@@ -191,7 +192,7 @@ export function MorningMarketPicks({ initial }: { initial: MorningPicksSnapshot 
     };
     void read();
     // Reads persisted results only. The API server owns all scanning.
-    const timer = window.setInterval(() => { setNow(Date.now()); void read(); }, 30_000);
+    const timer = window.setInterval(() => { setNow(Date.now()); if (tabVisible()) void read(); }, 30_000);
     return () => { readController.abort(); window.clearInterval(timer); };
   }, []);
   return <MorningPicksDisplay snapshot={snapshot} error={error} now={now} trends={trends} journal={journal} />;

@@ -13,6 +13,11 @@ import { createObserverPlan, evaluateObserverPlan, observerPlanChecks, resumeObs
 import { evaluateMeasuredPlan, summarizeObserverPlans } from "./market-observer-evaluation.js";
 import { reviewObserverPlan, proposalCanNotify } from "./observer-review.js";
 import { queueNotification, displayPair } from "./notifications.js";
+import { getForexSessionStatus } from "../../frontend/src/lib/strategy/session.js";
+
+/** Tick is 250 ms: unwatched pairs refresh every 5 s, everything every 60 s while closed. */
+const COLD_TICK_EVERY = 20;
+const CLOSED_TICK_EVERY = 240;
 
 interface CachedPlan { userId: string; plan: ObserverPlan; persisted: ObserverPlan; events: ObserverPlan[] }
 export class ObserverServiceError extends Error {}
@@ -53,14 +58,37 @@ export class MarketObserverService {
     if (kind === "calendar") this.state.calendarContext(data, receivedAt);
     if (kind === "context-error") this.state.contextError(data);
   }
+  private tickCount = 0;
+  private livePairStates = new Map<string, boolean>();
+  /** Pairs someone is looking at (snapshot/AI interest) or that a monitored plan is watching. */
+  private hotInstruments() {
+    const now = Date.now(), hot = new Set<string>();
+    for (const [instrument, at] of this.interested) if (now - at <= 600_000) hot.add(instrument);
+    for (const cached of this.plans.values()) if (!TERMINAL_PLAN_STATES.has(cached.plan.status)) hot.add(cached.plan.instrument);
+    return hot;
+  }
+  /**
+   * Every 250 ms only for hot pairs; the rest every 5 s, and everything once a
+   * minute while forex is shut. Recomputing all 14 reads four times a second,
+   * all week, was the API's largest steady CPU cost. The chart's read is built
+   * fresh per request, and plans are also re-checked on every quote (observe),
+   * so the slower cadence only coarsens persistence timing for unwatched pairs.
+   */
   private tick() {
     if (this.stopped) return;
+    const count = this.tickCount++;
+    const marketOpen = getForexSessionStatus(new Date()).marketOpen;
+    if (!marketOpen && count % CLOSED_TICK_EVERY !== 0) return;
+    const fullPass = !marketOpen || count % COLD_TICK_EVERY === 0;
+    const hot = fullPass ? null : this.hotInstruments();
     const asOf = new Date().toISOString(), reads = new Map<string, ObserverRead>();
     for (const instrument of this.patterns.instruments) {
+      if (hot && !hot.has(instrument)) continue;
       try { reads.set(instrument, this.state.update(instrument, asOf)); }
       catch (error) { console.error(`[observer] ${instrument} calculation failed`, error); }
     }
-    this.lastTickAt = asOf; this.livePairs = [...reads.values()].filter(r => r.state === "live").length;
+    for (const [instrument, read] of reads) this.livePairStates.set(instrument, read.state === "live");
+    this.lastTickAt = asOf; this.livePairs = [...this.livePairStates.values()].filter(Boolean).length;
     this.evaluatePlans(reads, asOf);
     if (this.aiEnabled) for (const [instrument, at] of this.interested) {
       if (Date.now() - at > 600_000) { this.interested.delete(instrument); continue; }

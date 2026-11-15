@@ -72,6 +72,8 @@ import { ChartCrosshairLabels } from "@/components/charts/chart-crosshair-labels
 import { useChartTouchGestures } from "@/components/charts/use-chart-touch-gestures";
 import { ChartBoxPrimitive, type ChartBox } from "@/components/charts/chart-box-primitive";
 import { ChartBackdropPrimitive } from "@/components/charts/chart-backdrop-primitive";
+import { VolumeProfilePrimitive } from "@/components/charts/volume-profile-primitive";
+import type { LiveVolumeProfile } from "@/lib/volume-profile";
 import { RoundedCandleSeries } from "@/components/charts/rounded-candle-series";
 import {
   formatClockTime,
@@ -1688,6 +1690,7 @@ export function SetupChart({
   levels,
   enabledIndicators,
   liveCandle,
+  liveVolumeProfile,
   variant = "candle",
   range = "1M",
   height = 480,
@@ -1719,6 +1722,7 @@ export function SetupChart({
   levels: SetupLevels | null;
   enabledIndicators: ChartIndicator[];
   liveCandle?: Candle | null;
+  liveVolumeProfile?: LiveVolumeProfile | null;
   variant?: ChartVariant;
   range?: ChartRange;
   height?: number;
@@ -1762,6 +1766,7 @@ export function SetupChart({
   const patternLineSeriesRef = useRef<ISeriesApi<"Line">[]>([]);
   const boxPrimitiveRef = useRef<ChartBoxPrimitive | null>(null);
   const backdropPrimitiveRef = useRef<ChartBackdropPrimitive | null>(null);
+  const volumeProfileRef = useRef<VolumeProfilePrimitive | null>(null);
   const boxesRef = useRef<ChartBox[]>(boxes);
   const renderedPatternLinesFingerprintRef = useRef<string | null>(null);
   const levelPriceLinesRef = useRef<IPriceLine[]>([]);
@@ -2127,6 +2132,12 @@ export function SetupChart({
     mainSeries.attachPrimitive(backdrop);
     backdrop.setCandles(series.candles);
     backdropPrimitiveRef.current = backdrop;
+    const profile = enabledIndicators.includes("volume-profile") ? new VolumeProfilePrimitive(isDark) : null;
+    if (profile) {
+      mainSeries.attachPrimitive(profile);
+      profile.setProfile(liveVolumeProfile);
+    }
+    volumeProfileRef.current = profile;
     renderedPatternLinesFingerprintRef.current = patternLinesFingerprint;
 
     // The entry-to-exit segment is created with the chart, even when there is no
@@ -2373,6 +2384,7 @@ export function SetupChart({
         patternLineSeriesRef.current = [];
         boxPrimitiveRef.current = null;
         backdropPrimitiveRef.current = null;
+        volumeProfileRef.current = null;
         renderedPatternLinesFingerprintRef.current = null;
         levelPriceLinesRef.current = [];
         patternPriceLinesRef.current = [];
@@ -2385,6 +2397,7 @@ export function SetupChart({
         .unsubscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
       window.clearInterval(historyPrefetchTimer);
       resizeObserver.disconnect();
+      if (profile) mainSeries.detachPrimitive(profile);
       chart.remove();
     };
   // The chart instance is intentionally not recreated for every candle update.
@@ -2429,6 +2442,10 @@ export function SetupChart({
   useEffect(() => {
     backdropPrimitiveRef.current?.setCandles(series.candles);
   }, [series.candles]);
+
+  useEffect(() => {
+    volumeProfileRef.current?.setProfile(liveVolumeProfile);
+  }, [liveVolumeProfile]);
 
   // Keep the horizontal MAJOR / CURRENT / PREV reference lines the indicator
   // exposes, but update them in place. Passing them through the chart-creation

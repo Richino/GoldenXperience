@@ -100,6 +100,7 @@ import {
   precisionFor,
 } from "@/lib/instruments/catalog";
 import { useMarketStream } from "@/lib/market-stream/use-market-stream";
+import { VolumeProfileQuoteBuffer, type LiveVolumeProfile } from "@/lib/volume-profile";
 import { useChartTradePL } from "@/lib/market-stream/use-chart-trade-pl";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { getMarketCondition } from "@/lib/strategy/session";
@@ -954,6 +955,25 @@ function breakoutPatternOverlay(candles: Candle[]): PatternOverlay {
   };
 }
 
+function liveCandleBuckets(series: CandleSeries, tick: MarketPriceTick) {
+  const last = series.candles.at(-1);
+  if (!last || series.instrument !== tick.instrument) return null;
+  const interval = GRANULARITY_MS[series.granularity] ?? GRANULARITY_MS.M15;
+  const tickMs = Date.parse(tick.time);
+  if (!Number.isFinite(tickMs)) return null;
+  if (SESSION_ALIGNED_GRANULARITIES.has(series.granularity)) {
+    const lastBucket = Date.parse(last.time);
+    if (!Number.isFinite(lastBucket)) return null;
+    const tickBucket = lastBucket + Math.floor((tickMs - lastBucket) / interval) * interval;
+    return { tickBucket, lastBucket, interval };
+  }
+  return {
+    tickBucket: alignTimeToGranularity(tick.time, series.granularity),
+    lastBucket: alignTimeToGranularity(last.time, series.granularity),
+    interval,
+  };
+}
+
 function applyTickToCandles(
   series: CandleSeries,
   tick: MarketPriceTick,
@@ -963,32 +983,16 @@ function applyTickToCandles(
   appended: boolean;
   changed: boolean;
 } {
-  if (series.instrument !== tick.instrument || !series.candles.length) {
+  const buckets = liveCandleBuckets(series, tick);
+  if (!buckets || buckets.tickBucket < buckets.lastBucket) {
     return { series, liveCandle: null, appended: false, changed: false };
   }
 
-  const interval = GRANULARITY_MS[series.granularity] ?? GRANULARITY_MS.M15;
+  const { tickBucket, lastBucket, interval } = buckets;
   const precision = precisionForInstrument(tick.instrument);
   const close = Number(tick.mid.toFixed(precision));
   const candles = [...series.candles];
   const last = candles[candles.length - 1]!;
-  let tickBucket: number;
-  let lastBucket: number;
-  if (SESSION_ALIGNED_GRANULARITIES.has(series.granularity)) {
-    lastBucket = Date.parse(last.time);
-    const tickMs = Date.parse(tick.time);
-    if (!Number.isFinite(lastBucket) || !Number.isFinite(tickMs)) {
-      return { series, liveCandle: null, appended: false, changed: false };
-    }
-    tickBucket = lastBucket + Math.floor((tickMs - lastBucket) / interval) * interval;
-  } else {
-    tickBucket = alignTimeToGranularity(tick.time, series.granularity);
-    lastBucket = alignTimeToGranularity(last.time, series.granularity);
-  }
-
-  if (tickBucket < lastBucket) {
-    return { series, liveCandle: null, appended: false, changed: false };
-  }
 
   if (tickBucket >= lastBucket + interval) {
     const liveCandle = {
@@ -2597,6 +2601,8 @@ export function SignalWorkspace({
   const [series, setSeries] = useState(primarySeries);
   const seriesRef = useRef(primarySeries);
   const [liveCandle, setLiveCandle] = useState<Candle | null>(null);
+  const volumeProfileBuffer = useRef<{ key: string; buffer: VolumeProfileQuoteBuffer; dirty: boolean } | null>(null);
+  const [volumeProfileSnapshot, setVolumeProfileSnapshot] = useState<(LiveVolumeProfile & { key: string }) | null>(null);
   const [quote, setQuote] = useState<PriceQuote | null>(null);
   // Dedicated completed-M15 history for session S/R freezes. Independent of the
   // chart timeframe so a 5m/1h view cannot change or invalidate the snapshot.
@@ -3314,6 +3320,11 @@ export function SignalWorkspace({
     ]),
   );
 
+  const volumeProfileEnabled = enabledIndicators.includes("volume-profile");
+  const volumeProfileKey = `${instrument}:${TIMEFRAME_TO_GRANULARITY[timeframe]}`;
+  const liveVolumeProfile = replayActive ? null
+    : volumeProfileSnapshot?.key === volumeProfileKey ? volumeProfileSnapshot : undefined;
+
   // Quotes do not certify completed OHLCV or provider tick counts. After a bar
   // boundary, refetch through the existing candle route before finalizing ABS.
   useEffect(() => {
@@ -3339,8 +3350,22 @@ export function SignalWorkspace({
   }, [enabledIndicators, replayActive, instrument, refreshMarketQuietly]);
 
   const handleMarketPrice = useCallback(
-    (tick: MarketPriceTick) => {
+    (tick: MarketPriceTick, transport: "stream" | "rest") => {
       if (tick.instrument !== instrument) return;
+      if (volumeProfileEnabled && tick.source === "oanda" && transport === "stream") {
+        const current = seriesRef.current;
+        const key = `${current.instrument}:${current.granularity}`;
+        const buckets = key === volumeProfileKey ? liveCandleBuckets(current, tick) : null;
+        if (buckets && buckets.tickBucket >= buckets.lastBucket) {
+          if (volumeProfileBuffer.current?.key !== key) {
+            volumeProfileBuffer.current = { key, buffer: new VolumeProfileQuoteBuffer(), dirty: false };
+          }
+          const entry = volumeProfileBuffer.current;
+          if (entry.buffer.add(tick, buckets.tickBucket, precisionForInstrument(instrument))) {
+            entry.dirty = true;
+          }
+        }
+      }
       pendingTickRef.current = tick;
       if (marketFrameRef.current !== null) return;
 
@@ -3349,6 +3374,14 @@ export function SignalWorkspace({
         const latestTick = pendingTickRef.current;
         pendingTickRef.current = null;
         if (!latestTick || latestTick.instrument !== instrument) return;
+
+        const entry = volumeProfileBuffer.current;
+        if (entry?.dirty && entry.key === volumeProfileKey) {
+          entry.dirty = false;
+          const { candleStart, profile } = entry.buffer.snapshot();
+          const interval = GRANULARITY_MS[seriesRef.current.granularity] ?? GRANULARITY_MS.M15;
+          setVolumeProfileSnapshot({ key: entry.key, profile, candleEnd: candleStart + interval });
+        }
 
         setQuote({
           instrument: latestTick.instrument,
@@ -3376,7 +3409,7 @@ export function SignalWorkspace({
         }
       });
     },
-    [instrument],
+    [instrument, volumeProfileEnabled, volumeProfileKey],
   );
   useMarketStream(instrument, handleMarketPrice, {
     trackPrice: false,
@@ -4895,6 +4928,7 @@ export function SignalWorkspace({
               levels={setupLevels}
               enabledIndicators={enabledIndicators}
               liveCandle={liveCandle}
+              liveVolumeProfile={liveVolumeProfile}
               variant={chartVariant}
               range={range}
               height={mobileChartHeight}
@@ -5119,6 +5153,7 @@ export function SignalWorkspace({
               levels={replayActive ? null : setupLevels}
               enabledIndicators={enabledIndicators}
               liveCandle={replayActive ? null : liveCandle}
+              liveVolumeProfile={liveVolumeProfile}
               variant={chartVariant}
               range={range}
               height={mobileChartHeight}
@@ -5443,6 +5478,7 @@ export function SignalWorkspace({
                     levels={!replayActive && overlayPreferences.levels ? setupLevels : null}
                     enabledIndicators={enabledIndicators}
                     liveCandle={replayActive ? null : liveCandle}
+                    liveVolumeProfile={liveVolumeProfile}
                     variant={chartVariant}
                     range={range}
                     height={desktopChartHeight}
@@ -5624,6 +5660,7 @@ export function SignalWorkspace({
               levels={!replayActive && overlayPreferences.levels ? setupLevels : null}
               enabledIndicators={enabledIndicators}
               liveCandle={replayActive ? null : liveCandle}
+              liveVolumeProfile={liveVolumeProfile}
               variant={chartVariant}
               range={range}
               height={height}

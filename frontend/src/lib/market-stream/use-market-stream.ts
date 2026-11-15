@@ -62,7 +62,7 @@ function isHeartbeatMessage(
 
 export function useMarketStream(
   instrument: MajorInstrument,
-  onPrice?: (tick: MarketPriceTick) => void,
+  onPrice?: (tick: MarketPriceTick, transport: "stream" | "rest") => void,
   options: { trackPrice?: boolean } = {},
 ) {
   const instrumentRef = useRef(instrument);
@@ -113,11 +113,11 @@ export function useMarketStream(
     closedByUnmountRef.current = false;
 
     /** One path for a price, whether it came from the stream or REST. */
-    function deliver(message: MarketPriceTick) {
+    function deliver(message: MarketPriceTick, transport: "stream" | "rest") {
       if (message.instrument !== instrumentRef.current) return;
       lastTickAtRef.current = Date.now();
       lastTickTimeRef.current = message.time;
-      onPriceRef.current?.(message);
+      onPriceRef.current?.(message, transport);
       setSnapshot((current) => {
         const nextState = message.source === "mock" ? "mock" : "connected";
         const nextMessage =
@@ -214,7 +214,7 @@ export function useMarketStream(
           return;
         }
 
-        if (isPriceTick(message)) deliver(message);
+        if (isPriceTick(message)) deliver(message, "stream");
       });
 
       socket.addEventListener("error", () => {
@@ -338,7 +338,7 @@ export function useMarketStream(
           time: quote.time,
           source: "oanda",
           sequence: 0,
-        });
+        }, "rest");
       } catch {
         // Next poll retries.
       } finally {

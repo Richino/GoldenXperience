@@ -57,6 +57,7 @@ import { collectMultiStrategyCycle, collectPaperCycle, decidePaperBatch, fastRes
 import { momentumShortInversionStatus } from "./momentum-short-inversion.js";
 import { markNotificationsRead, notificationsForUser, pushPublicKey, queueNotification, removePushSubscription, savePushSubscription } from "./notifications.js";
 import { startNewsReminders } from "./news-reminders.js";
+import { startMarketHoursAlerts } from "./market-hours-alerts.js";
 import { cashCloseSettings, updateCashCloseSettings, startCashCloseMonitor } from "./cash-close-conditions.js";
 import { withManualTradeLock } from "./manual-trade-lock.js";
 import { backfillPracticeEntryCosts, practiceExecutionOverview, setPracticeExecutionEnabled } from "./practice-execution.js";
@@ -1682,6 +1683,7 @@ const schedulersEnabled = process.env.ENABLE_SCHEDULERS !== "false";
 const stopWeeklyReviewWorker = databaseConfigured() && schedulersEnabled ? startWeeklyReviewWorker() : null;
 const stopCashCloseMonitor = startCashCloseMonitor();
 const stopNewsReminders = databaseConfigured() && schedulersEnabled && process.env.NEWS_REMINDERS_ENABLED !== "false" ? startNewsReminders() : null;
+const stopMarketHoursAlerts = databaseConfigured() && schedulersEnabled && process.env.MARKET_HOURS_ALERTS_ENABLED !== "false" ? startMarketHoursAlerts() : null;
 const morningScanner = databaseConfigured() && schedulersEnabled && process.env.MORNING_SCAN_ENABLED !== "false" ? startMorningScanner() : null;
 if (databaseConfigured() && !schedulersEnabled) {
   console.log("[schedulers] ENABLE_SCHEDULERS=false — legacy background trade, research and binary loops are OFF. Swing analysis has its own opt-in worker.");
@@ -2046,6 +2048,7 @@ function shutdown() {
   const newsStopped = newsStraddleRuntime?.stop() ?? Promise.resolve();
   const swingStopped = swingIntelligence.stop();
   const newsRemindersStopped = stopNewsReminders?.() ?? Promise.resolve();
+  const marketHoursAlertsStopped = stopMarketHoursAlerts?.() ?? Promise.resolve();
   const weeklyReviewStopped = stopWeeklyReviewWorker?.() ?? Promise.resolve();
   stopRecordingContext?.();
   stopPairTrendsScanner?.();
@@ -2072,7 +2075,7 @@ function shutdown() {
   // terminate() drops them immediately; clients simply reconnect.
   wss.clients.forEach((socket) => socket.terminate());
   wss.close();
-  server.close(() => { void Promise.allSettled([recordingClosed, observerClosed, newsStopped, swingStopped, newsRemindersStopped, weeklyReviewStopped]).finally(() => process.exit(0)); });
+  server.close(() => { void Promise.allSettled([recordingClosed, observerClosed, newsStopped, swingStopped, newsRemindersStopped, marketHoursAlertsStopped, weeklyReviewStopped]).finally(() => process.exit(0)); });
   // Fallback: exit even if a handle is still open, so the port is always freed
   // promptly for the next boot. unref() so it never itself keeps us alive.
   setTimeout(() => process.exit(0), 5000).unref();

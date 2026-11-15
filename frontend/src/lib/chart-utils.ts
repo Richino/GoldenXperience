@@ -46,6 +46,7 @@ export type ChartVariant = (typeof CHART_VARIANTS)[number]["value"];
 
 export const CHART_INDICATORS = [
   { value: "heavy-absorption", label: "GX Heavy Absorption", group: "overlay" },
+  { value: "volume-profile", label: "Volume Profile", group: "overlay" },
   { value: "support-resistance", label: "Support & resistance", group: "overlay" },
   { value: "swing-trend-lines", label: "Swing trend lines", group: "overlay" },
   { value: "fibonacci-retracement", label: "Fibonacci retracement", group: "overlay" },

@@ -5,6 +5,7 @@ const TECHNICAL_NOISE =
 
 export function notificationHref(item: AppNotification) {
   if (item.kind === "news_reminder") return "/";
+  if (item.kind === "market_hours") return "/chart";
   // Background research finished: open Analyze on that pair with the report and its plans.
   if (item.kind === "research_ready" && item.instrument) return `/chart?instrument=${encodeURIComponent(item.instrument)}&analyze=1`;
   if (item.instrument && /plan to review|entry conditions met/i.test(item.title)) return `/chart?instrument=${encodeURIComponent(item.instrument)}&observer=review`;

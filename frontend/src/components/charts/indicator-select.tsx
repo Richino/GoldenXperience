@@ -15,6 +15,7 @@ const byValue = new Map<string, IndicatorOption>(CHART_INDICATORS.map((indicator
 /** What each one draws, in a line, so the menu explains itself. */
 const DESCRIPTIONS: Partial<Record<ChartIndicator, string>> = {
   "heavy-absorption": "Candle rejection with elevated tick activity",
+  "volume-profile": "Streaming quotes by price for the current candle",
   "support-resistance": "Key price levels from past turns",
   "swing-trend-lines": "Lines through swing highs and lows",
   "fibonacci-retracement": "Retracement levels of the last swing",
@@ -37,7 +38,7 @@ const CHIP_LABELS: Partial<Record<ChartIndicator, string>> = {
 };
 
 const SECTIONS: { title: string; chips?: boolean; items: ChartIndicator[] }[] = [
-  { title: "Price action", items: ["heavy-absorption"] },
+  { title: "Price action", items: ["heavy-absorption", "volume-profile"] },
   { title: "Levels", items: ["support-resistance", "swing-trend-lines", "fibonacci-retracement"] },
   { title: "Sessions", items: ["amd", "amd-range", "amd-fvg"] },
   { title: "Moving averages · EMA", chips: true, items: ["ema21", "ema50", "ema-50-100-200", "ema200"] },

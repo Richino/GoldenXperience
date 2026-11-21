@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ArrowRight, Search, X } from "lucide-react";
@@ -37,7 +37,13 @@ type Quote = { bid: number; ask: number } | undefined;
 type Quotes = Record<string, { bid: number; ask: number } | undefined>;
 
 /** Money won and lost across every closed trade, from the server summary. */
-type WonLost = { won: number; lost: number; wins: number; losses: number };
+type WonLost = {
+  won: number; lost: number; wins: number; losses: number;
+  /** OANDA overnight interest on these trades; null when the broker could not be read. */
+  financing?: number | null;
+  /** Spread paid on every fill; already inside won/lost, shown as a breakdown. */
+  spreadCost?: number | null;
+};
 
 type Summary = {
   total: number;
@@ -285,10 +291,10 @@ function RealizedMoneyLine({ results }: { results: number[] }) {
             <stop offset={split} stopColor="var(--danger)" />
           </linearGradient>
           <linearGradient id={`${id}-fill`} gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="0" y2={height}>
-            <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.18" />
-            <stop offset={split} stopColor="var(--accent)" stopOpacity="0" />
-            <stop offset={split} stopColor="var(--danger)" stopOpacity="0" />
-            <stop offset="100%" stopColor="var(--danger)" stopOpacity="0.18" />
+            <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.32" />
+            <stop offset={split} stopColor="var(--accent)" stopOpacity="0.08" />
+            <stop offset={split} stopColor="var(--danger)" stopOpacity="0.08" />
+            <stop offset="100%" stopColor="var(--danger)" stopOpacity="0.32" />
           </linearGradient>
         </defs>
         <path d={area} fill={`url(#${id}-fill)`} className="nl-tr-line-area" />
@@ -306,10 +312,12 @@ function RealizedMoneyLine({ results }: { results: number[] }) {
 /** Money won vs money lost across all closed trades, as one split bar. */
 function WinLossBar({ totals }: { totals: WonLost | undefined }) {
   if (!totals) return null;
-  const { won, lost, wins: winCount, losses: lossCount } = totals;
+  const { won, lost, wins: winCount, losses: lossCount, financing = null, spreadCost = null } = totals;
   const total = won + lost;
   if (!total) return null;
   const winShare = (won / total) * 100;
+  // Matches the account's change: trade P/L plus OANDA's overnight interest.
+  const net = won - lost + (financing ?? 0);
 
   return (
     <div className="nl-tr-wl">
@@ -333,6 +341,30 @@ function WinLossBar({ totals }: { totals: WonLost | undefined }) {
           {fmtMoney(lost)} <small>· {lossCount} losses</small>
         </span>
       </div>
+      {/* A small statement that adds up to the account's change. */}
+      <dl className="nl-tr-wl-net">
+        {financing !== null ? (
+          <>
+            <div>
+              <dt>Trade P/L</dt>
+              <dd className={`metric-number ${toneOf(won - lost)}`}>{fmtMoney(won - lost, true)}</dd>
+            </div>
+            <div>
+              <dt>Financing</dt>
+              <dd className={`metric-number ${toneOf(financing)}`}>{fmtMoney(financing, true)}</dd>
+            </div>
+          </>
+        ) : null}
+        <div className="is-total">
+          <dt>Net</dt>
+          <dd className={`metric-number ${toneOf(net)}`}>{fmtMoney(net, true)}</dd>
+        </div>
+      </dl>
+      {spreadCost !== null && spreadCost > 0 ? (
+        <p className="nl-tr-wl-note">
+          Includes <span className="metric-number">{fmtMoney(spreadCost)}</span> spread paid on opening and closing fills.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -350,6 +382,7 @@ function TradesSummaryRow({
   recentClosed,
   recentR,
   wonLost,
+  balanceHistory,
 }: {
   tab: Tab;
   openCount: number;
@@ -364,27 +397,29 @@ function TradesSummaryRow({
   recentClosed: JournalTrade[];
   recentR: number[];
   wonLost: WonLost | undefined;
+  /** Broker balance after each transaction, oldest first. */
+  balanceHistory: AccountBalanceHistoryPoint[];
 }) {
   const withPl = recentClosed.filter((t) => typeof t.paperPl === "number" && Number.isFinite(t.paperPl));
   const realizedResults = withPl.map((t) => t.paperPl as number).reverse();
   const net = withPl.reduce((sum, t) => sum + (t.paperPl ?? 0), 0);
-  let netR = 0;
-  let tradesWithR = 0;
-  let includesEstimatedR = false;
-  for (const trade of withPl) {
-    if (typeof trade.resultR === "number" && Number.isFinite(trade.resultR)) {
-      netR += trade.resultR;
-      tradesWithR++;
-    } else if (typeof trade.estimatedRMultiple === "number" && Number.isFinite(trade.estimatedRMultiple)) {
-      netR += trade.estimatedRMultiple;
-      tradesWithR++;
-      includesEstimatedR = true;
-    }
-  }
-  const rCoverage = tradesWithR === withPl.length ? `${withPl.length} trades` : `${tradesWithR} of ${withPl.length} trades`;
-  const realizedR = tradesWithR
-    ? `${includesEstimatedR ? "Est. " : ""}${fmtR(netR)} across ${rCoverage}`
-    : withPl.length ? "R unavailable for these trades" : "No realized results yet";
+  // Return on the account: the net over the balance just before the oldest of
+  // these trades closed, read from the broker's own balance history.
+  const oldestClose = withPl.reduce<number | null>((oldest, t) => {
+    const at = t.closedAt ? Date.parse(t.closedAt) : NaN;
+    return Number.isFinite(at) && (oldest === null || at < oldest) ? at : oldest;
+  }, null);
+  const startBalance = oldestClose === null
+    ? null
+    // Strictly before the closing fill; the fill's own point is after it.
+    : balanceHistory.filter((p) => Date.parse(p.time) < oldestClose - 1_000).at(-1)?.balance ?? null;
+  const returnPct = startBalance && startBalance > 0 ? (net / startBalance) * 100 : null;
+  const realizedR: ReactNode = returnPct !== null ? (
+    <span title={`On the ${fmtMoney(startBalance)} balance before the first of these trades closed.`}>
+      <span className={`nl-tr-hero-r ${toneOf(returnPct)}`}>{`${returnPct >= 0 ? "+" : "−"}${Math.abs(returnPct).toFixed(2)}%`}</span>
+      {" "}of account over {withPl.length} trades
+    </span>
+  ) : withPl.length ? `Over ${withPl.length} trades` : "No realized results yet";
   const hero =
     tab === "open"
       ? {
@@ -882,13 +917,28 @@ export function TradesView() {
     [closedTrades],
   );
 
-  // Orders is the default even when only pending entries exist. Explicit
+  // Orders is the default when there is something open or waiting. Explicit
   // history links (such as Home's ?tab=closed) still choose their own view.
+  // Set once the default is settled: a link, a click, or the first load.
+  const tabChosenRef = useRef(false);
   useEffect(() => {
     const requested = new URLSearchParams(window.location.search).get("tab");
     if (requested !== "open" && requested !== "orders" && requested !== "closed" && requested !== "all") return;
+    tabChosenRef.current = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTab(requested === "orders" ? "open" : requested);
+  }, []);
+  // With no open trades and no pending orders, Orders would be empty: open on
+  // Closed instead. Decided once, after the first load of both.
+  useEffect(() => {
+    if (tabChosenRef.current || summary === null || ordersLoading) return;
+    tabChosenRef.current = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (openTrades.length === 0 && pendingOrders.length === 0) setTab("closed");
+  }, [summary, ordersLoading, openTrades.length, pendingOrders.length]);
+  const chooseTab = useCallback((next: Tab) => {
+    tabChosenRef.current = true;
+    setTab(next);
   }, []);
 
   const openCount = openTrades.length;
@@ -1045,6 +1095,7 @@ export function TradesView() {
           wonLost={summary?.wonLost}
           recentClosed={closedTrades}
           recentR={recentR}
+          balanceHistory={balanceHistory}
         />
       )}
 
@@ -1060,7 +1111,7 @@ export function TradesView() {
                 role="tab"
                 aria-selected={tab === t.id}
                 className={tab === t.id ? "is-active" : ""}
-                onClick={() => setTab(t.id)}
+                onClick={() => chooseTab(t.id)}
               >
                 {t.label} <span className="metric-number">{t.count}</span>
               </button>

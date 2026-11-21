@@ -624,8 +624,14 @@ export function DashboardView({
 
   return (
     <>
-      {/* Only the balance blocks; other sections show their own placeholders. */}
-      <HomeLoadingBoundary ready={loadState.account !== "loading"}>
+      {/* Home appears once every section has settled (loaded or failed). */}
+      <HomeLoadingBoundary ready={{
+        account: loadState.account !== "loading",
+        history: loadState.history !== "loading",
+        positions: loadState.positions !== "loading",
+        journal: loadState.journal !== "loading",
+        pending: loadState.pending !== "loading",
+      }}>
       <LedgerHome
         account={account}
         accountError={accountError}

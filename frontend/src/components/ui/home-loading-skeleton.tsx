@@ -112,6 +112,34 @@ export function HomeLoadingSkeleton() {
                 <div className="nl-pending-foot"><Placeholder className="h-3 w-20" /><Placeholder className="h-8 w-16 rounded-full" /></div>
               </div>
             </section>
+          </div>
+          <aside className="nl-home-aside">
+            <section className="nl-card nl-news">
+              <div className="nl-card-head"><Placeholder className="h-6 w-36" /><Placeholder className="h-3 w-5" /></div>
+              <div className="nl-news-list">
+                {Array.from({ length: 3 }, (_, index) => (
+                  <div key={index} className="nl-news-row">
+                    <div className="space-y-2"><Placeholder className="h-3 w-8" /><Placeholder className="h-4 w-10" /></div>
+                    <div className="min-w-0 flex-1 space-y-2"><Placeholder className="h-4 w-full" /><Placeholder className="h-3 w-20" /></div>
+                    <Placeholder className="h-5 w-8" />
+                  </div>
+                ))}
+              </div>
+            </section>
+            <section className="nl-today">
+              <div className="nl-today-head"><Placeholder className="h-4 w-28" /><Placeholder className="h-4 w-12" /></div>
+              <div className="nl-today-main">
+                <Placeholder className="h-10 w-44 shrink-0 lg:h-14" />
+                <Placeholder className="h-10 min-w-0 flex-1 rounded-md" />
+              </div>
+              <dl className="nl-today-meta">
+                {Array.from({ length: 3 }, (_, index) => (
+                  <div key={index}><dt><Placeholder className="h-3 w-12" /></dt><dd><Placeholder className="h-6 w-12" /></dd></div>
+                ))}
+              </dl>
+            </section>
+          </aside>
+          <div className="nl-home-history">
             <section className="nl-sec nl-activity">
               <SectionHeading />
               <div className="nl-activity-list">
@@ -127,36 +155,6 @@ export function HomeLoadingSkeleton() {
               </div>
             </section>
           </div>
-          <aside className="nl-home-aside">
-            <section className="nl-today">
-              <div className="nl-today-head"><Placeholder className="h-4 w-28" /><Placeholder className="h-4 w-12" /></div>
-              <div className="nl-today-main">
-                <Placeholder className="h-10 w-44 shrink-0 lg:h-14" />
-                <Placeholder className="h-10 min-w-0 flex-1 rounded-md" />
-              </div>
-              <dl className="nl-today-meta">
-                {Array.from({ length: 3 }, (_, index) => (
-                  <div key={index}><dt><Placeholder className="h-3 w-12" /></dt><dd><Placeholder className="h-6 w-12" /></dd></div>
-                ))}
-              </dl>
-            </section>
-            <section className="nl-card nl-news">
-              <div className="nl-card-head"><Placeholder className="h-6 w-36" /><Placeholder className="h-3 w-5" /></div>
-              <div className="nl-news-list">
-                {Array.from({ length: 3 }, (_, index) => (
-                  <div key={index} className="nl-news-row">
-                    <div className="space-y-2"><Placeholder className="h-3 w-8" /><Placeholder className="h-4 w-10" /></div>
-                    <div className="min-w-0 flex-1 space-y-2"><Placeholder className="h-4 w-full" /><Placeholder className="h-3 w-20" /></div>
-                    <Placeholder className="h-5 w-8" />
-                  </div>
-                ))}
-              </div>
-            </section>
-          </aside>
-          <section className="nl-sec nl-wr">
-            <SectionHeading />
-            <div className="nl-wr-card space-y-4"><Placeholder className="h-10 w-44" /><Placeholder className="h-4 w-56" /><Placeholder className="h-4 w-full" /><Placeholder className="h-4 w-3/4" /></div>
-          </section>
         </div>
       </div>
     </div>

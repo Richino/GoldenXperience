@@ -19,6 +19,7 @@ const DESCRIPTIONS: Partial<Record<ChartIndicator, string>> = {
   "support-resistance": "Key price levels from past turns",
   "swing-trend-lines": "Lines through swing highs and lows",
   "fibonacci-retracement": "Retracement levels of the last swing",
+  "session-colors": "Shade Asia, London and New York behind the candles",
   amd: "Asia, London and New York to noon",
   "amd-range": "Accumulation box on any range",
   "amd-fvg": "Fair value gaps",
@@ -40,7 +41,7 @@ const CHIP_LABELS: Partial<Record<ChartIndicator, string>> = {
 const SECTIONS: { title: string; chips?: boolean; items: ChartIndicator[] }[] = [
   { title: "Price action", items: ["heavy-absorption", "volume-profile"] },
   { title: "Levels", items: ["support-resistance", "swing-trend-lines", "fibonacci-retracement"] },
-  { title: "Sessions", items: ["amd", "amd-range", "amd-fvg"] },
+  { title: "Sessions", items: ["session-colors", "amd", "amd-range", "amd-fvg"] },
   { title: "Moving averages · EMA", chips: true, items: ["ema21", "ema50", "ema-50-100-200", "ema200"] },
   { title: "Momentum & volatility", items: ["atr14", "rsi14"] },
   { title: "Filters", items: ["spread-filter", "session-filter", "news-filter"] },

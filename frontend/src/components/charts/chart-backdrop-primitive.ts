@@ -149,7 +149,15 @@ export class ChartBackdropPrimitive implements ISeriesPrimitive<Time> {
   constructor(
     private colors: ChartBackdropColors,
     private readonly fontFamily: string,
+    /** The "Session colors" chart setting; volume bars draw either way. */
+    private showSessions = true,
   ) {}
+
+  setShowSessions(show: boolean) {
+    if (this.showSessions === show) return;
+    this.showSessions = show;
+    this.requestUpdate?.();
+  }
 
   setCandles(candles: Candle[]) {
     this.candles = candles;
@@ -201,6 +209,7 @@ export class ChartBackdropPrimitive implements ISeriesPrimitive<Time> {
     }
 
     // Sessions: intraday only, snapped to the bars that fall inside them.
+    if (!this.showSessions) return;
     const times = this.candles.map((candle) => Date.parse(candle.time));
     const barMs = typicalBarMs(times);
     if (!(barMs > 0) || barMs / 1_000 > MAX_SESSION_BAR_SECONDS) return;

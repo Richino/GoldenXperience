@@ -5,7 +5,6 @@ import { CANDLE_ALIGNMENT } from "../../frontend/src/lib/strategy/candle-clock.j
 import { verifiedAbsorptionAlerts } from "./absorption-alerts.js";
 import { parseAbsorptionSettings } from "../../frontend/src/lib/indicators/absorption.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { cachedWeeklyReview, startWeeklyReviewWorker } from "./weekly-review.js";
 import { planReview } from "./plan-review.js";
 import { pairTrends, pairTrendsHealth, startPairTrendsScanner } from "./pair-trends.js";
 import { URL, fileURLToPath } from "node:url";
@@ -541,19 +540,6 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     // The swing plan's checklist tags (trend / news / level / style), scored.
     if (url.pathname === "/api/review/plan" && request.method === "GET") {
       return json(request, response, await planReview(user.id));
-    }
-    if (url.pathname === "/api/review/weekly" && request.method === "GET") {
-      const review = await cachedWeeklyReview(user.id);
-      return review
-        ? json(request, response, review)
-        : json(request, response, { pending: true, error: "The weekly review is being prepared." }, 503);
-    }
-    // Older clients request the summary separately. Serve the same cached result.
-    if (url.pathname === "/api/review/weekly/summary" && request.method === "POST") {
-      const review = await cachedWeeklyReview(user.id);
-      if (review && !review.stats.trades) return json(request, response, { error: "No closed trades last week." }, 409);
-      if (!review?.summary) return json(request, response, { error: "The weekly summary is unavailable." }, 503);
-      return json(request, response, { summary: review.summary, model: review.model });
     }
     if (url.pathname === "/api/analyze/explain" && request.method === "POST") {
       // Prose about an Analyze V2 result the app already calculated. It never
@@ -1656,7 +1642,28 @@ if (config.isConfigured) {
   setInterval(() => instruments.forEach((instrument) => handlePrice(createMockTick(instrument, ++mockSequence))), 1_000);
 }
 
-server.listen(PORT, () => console.log(`[api] HTTP and WebSocket server listening on :${PORT}`));
+server.listen(PORT, () => {
+  console.log(`[api] HTTP and WebSocket server listening on :${PORT}`);
+  void warmJournalCaches();
+});
+
+/**
+ * The first journal read after a boot pays ~2s of OANDA closed-trade lookups
+ * (risk-reporting caches them for the life of the process). Pay it here, in
+ * the background, so the first page load does not. Read-only: no broker
+ * import, no writes, so it is safe with ENABLE_SCHEDULERS=false too.
+ */
+async function warmJournalCaches() {
+  if (!databaseConfigured() || !config.isConfigured || process.env.JOURNAL_WARMUP_ENABLED === "false") return;
+  const startedAt = Date.now();
+  try {
+    const users = await query<{ id: string }>("SELECT id FROM users");
+    for (const user of users.rows) await journalTradeSummary(user.id);
+    console.log(`[journal] warmed closed-trade cash for ${users.rowCount} user(s) in ${Date.now() - startedAt}ms`);
+  } catch (error) {
+    console.warn("[journal] warm-up failed; the first journal read will fill the cache", error instanceof Error ? error.message : error);
+  }
+}
 const stopPairTrendsScanner = databaseConfigured() && config.isConfigured && process.env.PAIR_TRENDS_BACKGROUND_ENABLED !== "false" ? startPairTrendsScanner() : null;
 const stopRiskExcursions = databaseConfigured() && config.isConfigured ? startRiskExcursionObserver() : null;
 // Explicit analysis-worker opt-in; independent of every order/trading scheduler.
@@ -1680,7 +1687,6 @@ let breakoutConfidenceV1Collector: NodeJS.Timeout | null = null;
 // prices and candles, but starts none of the mutating loops. Unset — or any
 // value other than "false" — keeps them on, so the deployed server is unchanged.
 const schedulersEnabled = process.env.ENABLE_SCHEDULERS !== "false";
-const stopWeeklyReviewWorker = databaseConfigured() && schedulersEnabled ? startWeeklyReviewWorker() : null;
 const stopCashCloseMonitor = startCashCloseMonitor();
 const stopNewsReminders = databaseConfigured() && schedulersEnabled && process.env.NEWS_REMINDERS_ENABLED !== "false" ? startNewsReminders() : null;
 const stopMarketHoursAlerts = databaseConfigured() && schedulersEnabled && process.env.MARKET_HOURS_ALERTS_ENABLED !== "false" ? startMarketHoursAlerts() : null;
@@ -2049,7 +2055,6 @@ function shutdown() {
   const swingStopped = swingIntelligence.stop();
   const newsRemindersStopped = stopNewsReminders?.() ?? Promise.resolve();
   const marketHoursAlertsStopped = stopMarketHoursAlerts?.() ?? Promise.resolve();
-  const weeklyReviewStopped = stopWeeklyReviewWorker?.() ?? Promise.resolve();
   stopRecordingContext?.();
   stopPairTrendsScanner?.();
   stopRiskExcursions?.();
@@ -2075,7 +2080,7 @@ function shutdown() {
   // terminate() drops them immediately; clients simply reconnect.
   wss.clients.forEach((socket) => socket.terminate());
   wss.close();
-  server.close(() => { void Promise.allSettled([recordingClosed, observerClosed, newsStopped, swingStopped, newsRemindersStopped, marketHoursAlertsStopped, weeklyReviewStopped]).finally(() => process.exit(0)); });
+  server.close(() => { void Promise.allSettled([recordingClosed, observerClosed, newsStopped, swingStopped, newsRemindersStopped, marketHoursAlertsStopped]).finally(() => process.exit(0)); });
   // Fallback: exit even if a handle is still open, so the port is always freed
   // promptly for the next boot. unref() so it never itself keeps us alive.
   setTimeout(() => process.exit(0), 5000).unref();

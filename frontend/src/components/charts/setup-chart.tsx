@@ -2128,7 +2128,7 @@ export function SetupChart({
     boxPrimitive.setBoxes(boxesRef.current);
     boxPrimitiveRef.current = boxPrimitive;
     // Session bands and volume behind the candles, on desktop and phone.
-    const backdrop = new ChartBackdropPrimitive(palette.backdrop, '"Geist Mono", ui-monospace, monospace');
+    const backdrop = new ChartBackdropPrimitive(palette.backdrop, '"Geist Mono", ui-monospace, monospace', enabledIndicators.includes("session-colors"));
     mainSeries.attachPrimitive(backdrop);
     backdrop.setCandles(series.candles);
     backdropPrimitiveRef.current = backdrop;

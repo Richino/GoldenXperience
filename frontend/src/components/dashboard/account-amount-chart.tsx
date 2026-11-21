@@ -1,10 +1,12 @@
 "use client";
 
-import { useId, useMemo, useState, type ReactNode } from "react";
+import { useId, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import {
   Area,
   AreaChart,
   CartesianGrid,
+  ReferenceDot,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -162,13 +164,17 @@ function AccountChartAxisTick({
   y = 0,
   width = 0,
   payload,
+  labels,
 }: {
   x?: number;
   y?: number;
   width?: number;
   payload?: { value?: string | number };
+  /** Axis text by point index; the axis itself is keyed by the unique index. */
+  labels?: string[];
 }) {
   const textAnchor = x <= 12 ? "start" : x >= width - 12 ? "end" : "middle";
+  const text = labels && typeof payload?.value === "number" ? labels[payload.value] : payload?.value;
   return (
     <text
       className="recharts-text recharts-cartesian-axis-tick-value"
@@ -179,7 +185,7 @@ function AccountChartAxisTick({
       fontSize={10}
       textAnchor={textAnchor}
     >
-      {payload?.value}
+      {text}
     </text>
   );
 }
@@ -313,18 +319,61 @@ function seriesStroke(tone: AccountSeriesTone) {
   }
 }
 
+/** When a scrubbed point is, in the grain of its range. */
+function pointMoment(point: AccountChartPoint, range: AccountChartRange) {
+  if (point.index === 0) return "Start";
+  const date = new Date(point.at);
+  switch (range) {
+    case "1h":
+    case "1d":
+      return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(date);
+    case "1w":
+      return new Intl.DateTimeFormat("en-US", { weekday: "short", hour: "numeric" }).format(date);
+    case "1m":
+    case "3m":
+    case "1y":
+    case "all":
+      return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
+    default: {
+      const _never: never = range;
+      return _never;
+    }
+  }
+}
+
+/**
+ * The scrubbed point: balance, when, and what changed in that step. It rides
+ * above the pointer (clamped inside the canvas) so a finger never covers it.
+ */
 function ActiveValueLabel({
   point,
+  x,
+  range,
   currency,
 }: {
   point: AccountChartPoint | null;
+  x: string | null;
+  range: AccountChartRange;
   currency: string;
 }) {
   if (!point) return null;
+  const change = point.index === 0 ? 0 : point.change;
 
   return (
-    <div className="account-chart-active-label metric-number" aria-live="polite">
-      {moneyExact(point.value, currency)}
+    <div
+      className="account-chart-active-label"
+      aria-live="polite"
+      style={x === null ? undefined : { left: `clamp(72px, ${x}, calc(100% - 72px))` }}
+    >
+      <span className="account-chart-active-value metric-number">{moneyExact(point.value, currency)}</span>
+      <span className="account-chart-active-meta">
+        {pointMoment(point, range)}
+        {Math.abs(change) >= 0.005 ? (
+          <span className={`metric-number ${change > 0 ? "is-up" : "is-down"}`}>
+            {" · "}{change > 0 ? "+" : "−"}{moneyExact(Math.abs(change), currency)}
+          </span>
+        ) : null}
+      </span>
     </div>
   );
 }
@@ -460,7 +509,12 @@ export function AccountAmountChart({
   const bare = ledger && !scales;
   const gradientId = useId().replace(/:/g, "");
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  // Pointer x inside the canvas, so the label can follow the scrub.
+  const [activeX, setActiveX] = useState<number | null>(null);
+  const touch = useRef<{ id: number; x: number; y: number; scrubbing: boolean } | null>(null);
+  const [touchIndex, setTouchIndex] = useState<number | null>(null);
   const values = useMemo(() => series.map((point) => point.value), [series]);
+  const axisLabels = useMemo(() => series.map((point) => point.axisLabel), [series]);
   const min = Math.min(...values);
   const max = Math.max(...values);
   const room = Math.max((max - min) * 0.12, 1);
@@ -468,6 +522,7 @@ export function AccountAmountChart({
   const scaleSpan = (max - min + room * 2) / 1000;
   const scaleDigits = scaleSpan < 0.5 ? 2 : scaleSpan < 5 ? 1 : 0;
   const activePoint = activeIndex === null ? null : (series[activeIndex] ?? null);
+  const touchPoint = !bare || touchIndex === null ? null : (series[touchIndex] ?? null);
   const opening = series[0]?.value ?? 0;
   const latest = series.at(-1)?.value ?? opening;
   const netChange = latest - opening;
@@ -498,7 +553,9 @@ export function AccountAmountChart({
     }
   })();
 
-  function handleChartFocus(event: { activeTooltipIndex?: number | string | null }) {
+  function handleChartFocus(event: { activeTooltipIndex?: number | string | null; activeCoordinate?: { x?: number } }) {
+    const x = event.activeCoordinate?.x;
+    setActiveX(typeof x === "number" && Number.isFinite(x) ? x : null);
     if (typeof event.activeTooltipIndex === "number") {
       setActiveIndex(event.activeTooltipIndex);
       return;
@@ -511,6 +568,41 @@ export function AccountAmountChart({
     setActiveIndex(null);
   }
 
+  function clearFocus() {
+    setActiveIndex(null);
+    setActiveX(null);
+  }
+
+  function startTouch(event: PointerEvent<HTMLDivElement>) {
+    if (event.pointerType !== "touch" || !event.isPrimary || series.length < 2) return;
+    touch.current = { id: event.pointerId, x: event.clientX, y: event.clientY, scrubbing: false };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function moveTouch(event: PointerEvent<HTMLDivElement>) {
+    const gesture = touch.current;
+    if (!gesture || gesture.id !== event.pointerId) return;
+    if (!gesture.scrubbing) {
+      const dx = Math.abs(event.clientX - gesture.x);
+      const dy = Math.abs(event.clientY - gesture.y);
+      if (dx < 6 || dx <= dy) return;
+      gesture.scrubbing = true;
+      clearFocus();
+    }
+
+    // The edge-to-edge chart has no horizontal inset and its points are evenly spaced.
+    const { left, width } = event.currentTarget.getBoundingClientRect();
+    if (width <= 0) return;
+    const fraction = Math.max(0, Math.min(1, (event.clientX - left) / width));
+    setTouchIndex(Math.round(fraction * (series.length - 1)));
+  }
+
+  function endTouch(event: PointerEvent<HTMLDivElement>) {
+    if (touch.current?.id !== event.pointerId) return;
+    touch.current = null;
+    setTouchIndex(null);
+  }
+
   return (
     <div className={`account-chart${ledger ? " is-ledger" : ""}`}>
       {hideRangeRow ? null : (
@@ -521,8 +613,20 @@ export function AccountAmountChart({
         className={`account-chart-canvas${ledger ? "" : " mt-4"}`}
         role="img"
         aria-label={`Account balance over ${RANGE_CONFIG[range].label}`}
+        onPointerDown={bare ? startTouch : undefined}
+        onPointerMove={bare ? moveTouch : undefined}
+        onPointerUp={bare ? endTouch : undefined}
+        onPointerCancel={bare ? endTouch : undefined}
+        onLostPointerCapture={endTouch}
+        // Keep Recharts' native touch tooltip from competing with the scrub cursor.
+        onTouchMoveCapture={bare ? (event) => event.stopPropagation() : undefined}
       >
-        <ActiveValueLabel point={activePoint} currency={currency} />
+        <ActiveValueLabel
+          point={touchPoint ?? activePoint}
+          x={touchPoint ? `${(touchPoint.index / (series.length - 1)) * 100}%` : activeX === null ? null : `${activeX}px`}
+          range={range}
+          currency={currency}
+        />
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={series}
@@ -537,10 +641,10 @@ export function AccountAmountChart({
                   : { top: 14, right: 4, left: 4, bottom: 4 }
             }
             onMouseMove={handleChartFocus}
-            onMouseLeave={() => setActiveIndex(null)}
-            onTouchStart={handleChartFocus}
-            onTouchMove={handleChartFocus}
-            onTouchEnd={() => setActiveIndex(null)}
+            onMouseLeave={clearFocus}
+            onTouchStart={bare ? undefined : handleChartFocus}
+            onTouchMove={bare ? undefined : handleChartFocus}
+            onTouchEnd={bare ? undefined : clearFocus}
           >
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -554,11 +658,14 @@ export function AccountAmountChart({
               strokeOpacity={ledger ? 1 : 0.45}
               strokeDasharray={ledger ? "4 4" : undefined}
             />}
+            {/* Keyed by the unique index: day/hour labels repeat (1W has four
+                "Tue" buckets), and duplicate categories made the active dot
+                snap to the first match instead of the point under the pointer. */}
             <XAxis
-              dataKey="axisLabel"
+              dataKey="index"
               axisLine={false}
               tickLine={false}
-              tick={<AccountChartAxisTick />}
+              tick={<AccountChartAxisTick labels={axisLabels} />}
               interval={tickInterval}
               hide={bare}
             />
@@ -576,6 +683,7 @@ export function AccountAmountChart({
               <YAxis hide domain={[min - room, max + room]} />
             )}
             <Tooltip
+              active={touchPoint ? false : undefined}
               isAnimationActive={false}
               cursor={{ stroke, strokeWidth: 1, strokeDasharray: "4 4", strokeOpacity: 0.55 }}
               content={(props: {
@@ -589,6 +697,7 @@ export function AccountAmountChart({
                 />
               )}
             />
+            {touchPoint ? <ReferenceLine x={touchPoint.index} stroke={stroke} strokeOpacity={0.65} strokeDasharray="4 4" /> : null}
             <Area
               type={ledger ? "monotone" : "linear"}
               dataKey="value"
@@ -621,6 +730,9 @@ export function AccountAmountChart({
                 <PnLDot cx={props.cx} cy={props.cy} payload={props.payload} radius={5} />
               )}
             />
+            {touchPoint ? (
+              <ReferenceDot x={touchPoint.index} y={touchPoint.value} r={5} fill={stroke} stroke="var(--hero-surface)" strokeWidth={2} />
+            ) : null}
           </AreaChart>
         </ResponsiveContainer>
       </div>

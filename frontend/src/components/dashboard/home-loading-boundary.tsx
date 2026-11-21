@@ -1,8 +1,8 @@
 "use client";
 
-import { createContext, useContext, useEffect, useReducer, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useReducer, type ReactNode } from "react";
 import { HomeLoadingSkeleton } from "@/components/ui/home-loading-skeleton";
-import { initialHomeLoadingState, updateHomeLoading } from "@/lib/home/loading";
+import { HOME_LOADING_CEILING_MS, initialHomeLoadingState, updateHomeLoading } from "@/lib/home/loading";
 
 const HomeReadiness = createContext<((update: { section: string; ready: boolean }) => void) | null>(null);
 
@@ -12,10 +12,20 @@ export function useHomeSectionReady(section: string, ready: boolean) {
   useEffect(() => { report?.({ section, ready }); }, [report, section, ready]);
 }
 
-export function HomeLoadingBoundary({ ready, children }: { ready: boolean; children: ReactNode }) {
-  const [state, report] = useReducer(updateHomeLoading, undefined, initialHomeLoadingState);
-  // `ready` is the balance; the reducer latches it so refreshes never re-hide Home.
-  useEffect(() => { report({ section: "account", ready }); }, [ready]);
+export function HomeLoadingBoundary({ ready, children }: { ready: Record<string, boolean>; children: ReactNode }) {
+  const [state, dispatch] = useReducer(updateHomeLoading, undefined, initialHomeLoadingState);
+  const report = useCallback((update: { section: string; ready: boolean }) => dispatch(update), []);
+  // `ready` carries the page's own requests; cards report theirs through
+  // context. The reducer latches the reveal so refreshes never re-hide Home.
+  const readyKey = Object.entries(ready).map(([section, settled]) => `${section}:${settled}`).join(",");
+  useEffect(() => {
+    for (const [section, settled] of Object.entries(ready)) dispatch({ section, ready: settled });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- readyKey is the stable form of `ready`
+  }, [readyKey]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => dispatch({ ceiling: true }), HOME_LOADING_CEILING_MS);
+    return () => window.clearTimeout(timer);
+  }, []);
   const visible = state.revealed;
   return <HomeReadiness.Provider value={report}>
     <div data-home-ready={visible} style={{ position: "relative" }}>

@@ -45,6 +45,7 @@ export const CHART_VARIANTS = [
 export type ChartVariant = (typeof CHART_VARIANTS)[number]["value"];
 
 export const CHART_INDICATORS = [
+  { value: "session-colors", label: "Session colors", group: "overlay" },
   { value: "heavy-absorption", label: "GX Heavy Absorption", group: "overlay" },
   { value: "volume-profile", label: "Volume Profile", group: "overlay" },
   { value: "support-resistance", label: "Support & resistance", group: "overlay" },
@@ -66,7 +67,7 @@ export const CHART_INDICATORS = [
 
 export type ChartIndicator = (typeof CHART_INDICATORS)[number]["value"];
 
-export const DEFAULT_CHART_INDICATORS: ChartIndicator[] = ["heavy-absorption"];
+export const DEFAULT_CHART_INDICATORS: ChartIndicator[] = ["session-colors", "heavy-absorption"];
 
 export function isChartIndicatorEnabled(
   enabled: readonly string[],

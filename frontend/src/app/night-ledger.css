@@ -767,6 +767,30 @@ html:is(.dark, :not(.dark)) body .nl-hero .nl-range-tabs .account-range-btn::aft
   overflow: hidden;
 }
 
+.nl-home .nl-chart-card {
+  --chart-up: #466b1e;
+}
+
+.dark .nl-home .nl-chart-card {
+  --chart-up: #a2b978;
+}
+
+.nl-home .nl-chart-card .account-chart-active-label {
+  border: 1px solid var(--border-strong);
+  background: var(--surface-raised);
+  color: var(--foreground);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 16%);
+}
+
+.nl-home .nl-chart-card .account-chart-active-meta {
+  color: var(--muted-strong);
+  opacity: 1;
+}
+
+.nl-home .nl-chart-card .account-chart-active-meta .is-up {
+  color: var(--chart-up);
+}
+
 html:is(.dark, :not(.dark)) body .nl-chart-card .account-chart {
   height: 100%;
 }
@@ -811,7 +835,66 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
 }
 
 .nl-stats > div:nth-child(n + 3) { border-top: 1px solid var(--border); }
-.nl-stat-quota-target { color: var(--muted); font-size: 0.75em; }
+/* Quota cells: label + status pill, amount, progress bar, one quiet note. */
+.nl-stats .nl-stat-quota dt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.nl-quota-status {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--muted-strong);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.nl-quota-status svg { width: 12px; height: 12px; stroke-width: 2.5; }
+.nl-home .nl-quota-status.is-met { background: var(--accent-soft); color: var(--accent); }
+
+.nl-quota-bar {
+  position: relative;
+  display: block;
+  height: 4px;
+  margin-top: 2px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+
+.nl-quota-bar > span {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  border-radius: inherit;
+  background: var(--muted);
+  transition: width 0.4s ease;
+}
+
+.nl-home .nl-quota-bar.is-met > span { background: var(--accent); }
+
+.nl-quota-note {
+  overflow: hidden;
+  color: var(--muted);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nl-quota-bar > span { transition: none; }
+}
 
 .nl-stats dt {
   color: var(--muted);
@@ -845,7 +928,7 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
   flex: 1 1 520px;
   display: flex;
   flex-direction: column;
-  gap: 56px;
+  gap: 20px;
   min-width: 0;
 }
 
@@ -857,6 +940,12 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.nl-home-history,
+.nl-home-cols > .nl-cal {
+  width: 100%;
+  min-width: 0;
 }
 
 /* Numbered section headings. */
@@ -1676,7 +1765,7 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
     font-size: 18px;
   }
 
-  /* One column, in the canvas order: positions, Today, news, pending. */
+  /* Stack the dashboard sections in their reading order. */
   .nl-home-cols {
     flex-direction: column;
     flex-wrap: nowrap;
@@ -1688,12 +1777,6 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
   .nl-home-aside {
     display: contents;
   }
-
-  .nl-positions { order: 1; }
-  .nl-today { order: 2; }
-  .nl-news { order: 3; }
-  .nl-pending { order: 4; }
-  .nl-activity { order: 6; }
 
   .nl-sec {
     gap: 12px;
@@ -2109,26 +2192,35 @@ html:is(.dark, :not(.dark)) body .nl-tr-bell {
   gap: 16px;
 }
 
+/* One summary card at every width: label, figure and R stacked, with the
+ * cumulative realized line as a full-width band along the card's bottom. */
 .nl-tr-hero {
+  --hero-pad: 24px;
   position: relative;
-  display: flex;
-  flex: 1 1 300px;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 16px;
-  min-height: 168px;
-  padding: 24px;
+  display: grid;
+  flex: 1 1 100%;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "label"
+    "value"
+    "sub"
+    "bars";
+  gap: 10px;
+  overflow: hidden;
+  padding: var(--hero-pad);
   border: 1px solid var(--border);
   border-radius: 24px;
   background: var(--surface);
 }
 
 .nl-tr-hero-label {
+  grid-area: label;
   color: var(--muted);
   font-size: 13px;
 }
 
 .nl-tr-hero-value {
+  grid-area: value;
   font-family: var(--font-display);
   font-size: 60px;
   font-weight: 800;
@@ -2137,12 +2229,43 @@ html:is(.dark, :not(.dark)) body .nl-tr-bell {
 }
 
 .nl-tr-hero-sub {
+  grid-area: sub;
   color: var(--muted);
   font-size: 13px;
   letter-spacing: 0;
 }
 
+/* Return on the account for the same trades as the figure above, in its colour. */
+.nl-tr-hero-r {
+  color: var(--foreground);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.nl-tr-hero-r.is-up {
+  color: var(--accent);
+}
+
+.nl-tr-hero-r.is-down {
+  color: var(--danger);
+}
+
+/* Align the chart with the card's text while keeping the bottom flush. */
 .nl-tr-hero-bars {
+  display: flex;
+  grid-area: bars;
+  height: 96px;
+  margin: 8px 0 calc(-1 * var(--hero-pad));
+}
+
+.nl-tr-hero-bars .nl-tr-line {
+  min-height: 0;
+}
+
+/* The phone layout has no separate R-bar card or stats grid; neither does
+ * desktop. Won vs lost carries the win/loss counts. */
+.nl-tr-summary > .nl-tr-barcard,
+.nl-tr-summary > .nl-tr-stats {
   display: none;
 }
 
@@ -2276,13 +2399,12 @@ html:is(.dark, :not(.dark)) body .nl-tr-bell {
 
 .nl-tr-line-stroke {
   fill: none;
-  stroke-width: 2;
+  stroke-width: 2.5;
   stroke-linejoin: round;
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
-  /* Non-scaling strokes dash in screen pixels; 600 covers the whole line. */
-  stroke-dasharray: 600;
-  stroke-dashoffset: 600;
+  /* Revealed left to right with a clip, so it draws in at any width. */
+  clip-path: inset(0 100% 0 0);
   animation: nl-tr-line-draw 900ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
@@ -2310,7 +2432,7 @@ html:is(.dark, :not(.dark)) body .nl-tr-bell {
 
 @keyframes nl-tr-line-draw {
   to {
-    stroke-dashoffset: 0;
+    clip-path: inset(0 0 0 0);
   }
 }
 
@@ -2326,7 +2448,7 @@ html:is(.dark, :not(.dark)) body .nl-tr-bell {
   .nl-tr-line-dot {
     animation: none;
     opacity: 1;
-    stroke-dashoffset: 0;
+    clip-path: none;
   }
 }
 
@@ -2387,6 +2509,75 @@ html:is(.dark, :not(.dark)) body .nl-tr-bell {
   color: var(--muted);
   font-size: 12px;
   font-weight: 400;
+}
+
+/* Trade P/L + financing = net: a short statement that ties the bar to the
+ * account balance. Labels left, figures right-aligned in one column. */
+.nl-tr-wl-net {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.nl-tr-wl-net > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.nl-tr-wl-net dt {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.nl-tr-wl-net dd {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.nl-tr-wl-net > .is-total {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border-strong);
+}
+
+.nl-tr-wl-net > .is-total dt {
+  color: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.nl-tr-wl-net > .is-total dd {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.nl-tr-wl-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.nl-tr-wl-note .metric-number {
+  color: inherit;
+  letter-spacing: 0;
+}
+
+/* Wide cards: keep label and figure close, set like an invoice total. */
+@media (min-width: 1024px) {
+  .nl-tr-wl-net {
+    width: min(100%, 340px);
+    margin-left: auto;
+  }
+
+  .nl-tr-wl-note {
+    text-align: right;
+  }
 }
 
 /* --------------------------------------------------------------- toolbar */
@@ -2956,33 +3147,20 @@ html:is(.dark, :not(.dark)) body .nl-tr-bell {
     font-size: 48px;
   }
 
-  /* One summary card: figure on the left, recent bars on the right. */
+  /* Same single summary card as desktop, sized for a phone. */
   .nl-tr-hero {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 112px;
-    grid-template-areas:
-      "label bars"
-      "value bars"
-      "sub bars";
-    gap: 8px 16px;
-    min-height: 0;
-    padding: 18px;
+    --hero-pad: 18px;
+    gap: 8px;
     border-radius: 22px;
   }
 
-  .nl-tr-hero-label { grid-area: label; font-size: 12px; }
-  .nl-tr-hero-value { grid-area: value; font-size: 40px; }
-  .nl-tr-hero-sub { grid-area: sub; font-size: 12px; }
-
   .nl-tr-hero-bars {
-    display: flex;
-    grid-area: bars;
+    height: 72px;
   }
 
-  .nl-tr-barcard,
-  .nl-tr-stats {
-    display: none;
-  }
+  .nl-tr-hero-label { font-size: 12px; }
+  .nl-tr-hero-value { font-size: 40px; }
+  .nl-tr-hero-sub { font-size: 12px; }
 
   .nl-tr-tabs {
     display: grid;
@@ -8635,197 +8813,6 @@ html:is(.dark, :not(.dark)) body .gx-pair-trade-count {
 }
 .gx-welcome-title h1 span { color: #c8f560; }
 
-
-/* ============================================================ WEEKLY REVIEW
-   Home: the last 7 days of the trader's own trades (weekly-review.tsx): a
-   stat strip, the AI coach's summary with "where it went wrong" and "what to
-   do next", and session / pair breakdowns. */
-.nl-wr-window { color: var(--muted); font-size: 12px; }
-@media (min-width: 1024px) {
-  .nl-home-cols > .nl-wr {
-    flex: 0 0 100%;
-    margin-top: 24px;
-  }
-}
-.nl-wr-card {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding: 22px 24px;
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  background: var(--surface);
-}
-.nl-wr-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
-  gap: 16px;
-  margin: 0;
-}
-.nl-wr-stats div { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.nl-wr-stats dt { color: var(--muted); font-size: 11px; }
-.nl-wr-stats dd { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: 0; overflow-wrap: anywhere; }
-.nl-wr-stats dd small { color: var(--muted); font-size: 11px; font-weight: 500; }
-.nl-wr-stats dd:has(.is-up) { display: flex; flex-wrap: wrap; column-gap: 4px; font-size: 15px; }
-
-.nl-wr-ai {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 18px 20px;
-  border-radius: 16px;
-  background: var(--surface-raised);
-}
-.nl-wr-ai-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.nl-wr-ai-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--muted);
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-.nl-wr-ai-label svg { width: 14px; height: 14px; color: var(--accent); }
-.nl-wr-retry {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid var(--border-strong);
-  border-radius: 10px;
-  background: var(--surface);
-  color: var(--foreground);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.nl-wr-retry svg { width: 13px; height: 13px; }
-.nl-wr-summary { margin: 0; font-size: 15px; line-height: 1.6; }
-.nl-wr-focus {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: var(--accent-soft);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.45;
-}
-.nl-wr-focus span {
-  color: var(--accent);
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-.nl-wr-check {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  font-size: 13px;
-  line-height: 1.5;
-}
-.nl-wr-check span,
-.nl-wr-history em {
-  color: var(--muted);
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: 10px;
-  font-style: normal;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-.nl-wr-list.is-again li::before { background: var(--pending-soft); color: var(--pending); }
-.nl-wr-history h3 { margin: 0 0 10px; font-size: 13px; font-weight: 700; }
-.nl-wr-history ul { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
-.nl-wr-history li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: baseline;
-  gap: 4px 12px;
-  padding: 8px 0;
-  border-top: 1px solid var(--border);
-  font-size: 13px;
-}
-.nl-wr-history li small { color: var(--muted); font-size: 11px; }
-.nl-wr-history li b { min-width: 84px; font-weight: 600; text-align: right; }
-.nl-wr-history li em { grid-column: 1 / -1; letter-spacing: 0.04em; text-transform: none; font-family: inherit; font-size: 12px; }
-.nl-wr-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
-.nl-wr-cols h3,
-.nl-wr-breakdown h3 { margin: 0 0 10px; font-size: 13px; font-weight: 700; }
-.nl-wr-list { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; counter-reset: wr; }
-.nl-wr-list li {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding-left: 30px;
-  counter-increment: wr;
-  font-size: 13px;
-  line-height: 1.5;
-}
-.nl-wr-list li::before {
-  content: counter(wr);
-  position: absolute;
-  left: 0;
-  top: 0;
-  display: grid;
-  width: 20px;
-  height: 20px;
-  place-items: center;
-  border-radius: 6px;
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: 11px;
-  font-weight: 600;
-}
-.nl-wr-list.is-wrong li::before { background: var(--danger-soft); color: var(--danger); }
-.nl-wr-list.is-do li::before { background: var(--accent-soft); color: var(--accent); }
-.nl-wr-list b { font-weight: 650; }
-.nl-wr-list span { color: var(--muted); }
-.nl-wr-ai-loading { display: flex; flex-direction: column; gap: 8px; }
-.nl-wr-ai-note { margin: 0; color: var(--muted); font-size: 12px; }
-.nl-wr-ai-note.is-warn { color: var(--pending); }
-.nl-wr-skel-line { display: block; height: 14px; border-radius: 6px; }
-.nl-wr-skel-line.is-short { width: 60%; }
-
-.nl-wr-breakdown { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
-.nl-wr-breakdown ul { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
-.nl-wr-breakdown li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: baseline;
-  gap: 12px;
-  padding: 8px 0;
-  border-top: 1px solid var(--border);
-  font-size: 13px;
-}
-.nl-wr-breakdown li small { color: var(--muted); font-size: 11px; }
-.nl-wr-breakdown li b { min-width: 84px; font-weight: 600; text-align: right; }
-.nl-wr-foot { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
-
-@media (min-width: 768px) and (max-width: 1023px) {
-  .nl-wr-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-
-@media (max-width: 767px) {
-  .nl-home-cols > .nl-wr { order: 10; }
-  .nl-wr-card { padding: 16px; gap: 16px; border-radius: 18px; }
-  .nl-wr-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-  .nl-wr-stats dd { font-size: 16px; }
-  .nl-wr-ai { padding: 14px; }
-  .nl-wr-cols,
-  .nl-wr-breakdown { grid-template-columns: minmax(0, 1fr); }
-}
-
 /* ============================================================ ANALYSIS MODE SHEET
    "Manage <pair>": Intraday and Swing as one grouped list (a timeframe tile,
    title, subtitle), Stop monitoring as its own danger row, and the
@@ -10245,157 +10232,395 @@ html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="watching"]
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Weekly review, minimal: a headline result, three quiet stats, the AI read
-   with one focus, and everything else folded into two rows. ── */
-.nl-wr-card {
-  gap: 18px;
-}
-
-.nl-wr-hero {
-  display: grid;
-  gap: 2px;
-}
-
-.nl-wr-hero-label {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.nl-wr-net {
-  font-family: var(--font-display);
-  font-size: clamp(30px, 8vw, 40px);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-}
-
-.nl-wr-hero-sub {
-  color: var(--muted-strong);
-  font-size: 13px;
-}
-
-.nl-wr-mini {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin: 0;
-}
-
-.nl-wr-mini div {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--foreground) 3.5%, transparent);
-}
-
-.nl-wr-mini dt {
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.nl-wr-mini dd {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  column-gap: 4px;
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.nl-wr-mini dd small {
-  color: var(--muted);
-  font-weight: 400;
-}
-
-@media (max-width: 520px) {
-  .nl-wr-mini { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .nl-wr-mini div:last-child { grid-column: 1 / -1; }
-}
-
-/* The AI block: no second box inside the card, just a divider. */
-.nl-wr-card .nl-wr-ai {
-  gap: 14px;
-  padding: 16px 0 0;
-  border: 0;
-  border-top: 1px solid var(--border);
-  border-radius: 0;
-  background: transparent;
-}
-
-.nl-wr-card .nl-wr-summary {
-  font-size: 15px;
-  line-height: 1.55;
-}
-
-/* Folded detail: full-width rows with a chevron. */
-.nl-wr-more {
-  border-top: 1px solid var(--border);
-}
-
-.nl-wr-more > summary {
+/* ============================================================ DAILY P/L CALENDAR
+   Home: one cell per New York trading day, tinted green or red by the day's
+   net from the broker's balance history (pnl-calendar.tsx). */
+.nl-cal-nav {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 48px;
-  color: var(--muted-strong);
-  font-size: 14px;
-  font-weight: 600;
-  list-style: none;
-  cursor: pointer;
+  gap: 6px;
 }
 
-.nl-wr-more > summary::-webkit-details-marker {
+.nl-cal-nav button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+.nl-cal-nav button:disabled {
+  opacity: 0.35;
+}
+
+.nl-cal-nav svg {
+  width: 16px;
+  height: 16px;
+}
+
+.nl-cal-month {
+  min-width: 118px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.nl-cal-month-short {
   display: none;
 }
 
-.nl-wr-more > summary::before {
-  content: "";
-  flex: none;
-  width: 7px;
-  height: 7px;
-  margin: 0 4px 0 2px;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  transform: rotate(-45deg);
-  transition: transform 160ms ease;
+/* Horizontal swipes change month; vertical drags still scroll the page. */
+.nl-cal-grid {
+  touch-action: pan-y;
 }
 
-.nl-wr-more[open] > summary::before {
-  transform: rotate(45deg);
+.nl-cal-card {
+  --cal-day-height: 60px;
+  container: pnl-calendar / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--surface);
 }
 
-.nl-wr-more > summary:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+.nl-cal-summary {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 16px;
 }
 
-.nl-wr-more[open] {
-  display: grid;
-  gap: 16px;
-  padding-bottom: 8px;
+.nl-cal-total {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-@media (max-width: 640px) {
-  .nl-wr-cols,
-  .nl-wr-breakdown {
-    grid-template-columns: 1fr;
+.nl-cal-total-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.nl-cal-net {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+}
+
+.nl-cal-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+@container pnl-calendar (max-width: 420px) {
+  .nl-cal-summary {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .nl-cal-chip {
+    padding-inline: 7px;
   }
 }
 
-/* Section labels inside the folded review all match. */
-.nl-wr-more h3 {
-  margin: 4px 0 10px;
+.nl-cal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.nl-cal-chip i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.nl-cal-chip.is-up { color: var(--accent); }
+.nl-cal-chip.is-down { color: var(--danger); }
+
+.nl-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  /* Reserve all six possible weeks even when the month ends early. */
+  grid-template-rows: auto repeat(6, minmax(var(--cal-day-height), auto));
+  gap: 6px;
+}
+
+.nl-cal-weekday {
+  padding-bottom: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.nl-cal-weekday.is-weekend {
+  opacity: 0.55;
+}
+
+/* Traded days are the only tiles; every other day is just its date. */
+.nl-cal-day {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--foreground);
+  text-align: center;
+  transition: transform 120ms ease;
+}
+
+.nl-cal-day:not(:disabled):active {
+  transform: scale(0.96);
+}
+
+.nl-cal-day:disabled {
+  cursor: default;
+}
+
+.nl-cal-day.is-empty .nl-cal-date {
+  opacity: 0.45;
+}
+
+.nl-cal-day.is-empty.is-future .nl-cal-date,
+.nl-cal-day.is-empty.is-weekend .nl-cal-date {
+  opacity: 0.25;
+}
+
+/* Four steps per side from the brand lime and coral (lvl-1 small → lvl-4
+   the month's biggest days). Light mode: soft fills with dark ink. */
+.nl-cal-card {
+  --cal-win-1: #eefbd2;
+  --cal-win-2: #dcf6a6;
+  --cal-win-3: #c8f560;
+  --cal-win-4: #a5dc2c;
+  --cal-win-ink: #2c4300;
+  --cal-loss-1: #ffefe8;
+  --cal-loss-2: #ffd9c8;
+  --cal-loss-3: #ffb497;
+  --cal-loss-4: #ff8a5b;
+  --cal-loss-ink: #7a2408;
+  --cal-ring: #6b9e0a;
+}
+
+.dark .nl-cal-card {
+  --cal-win-1: rgba(200, 245, 96, 0.12);
+  --cal-win-2: rgba(200, 245, 96, 0.22);
+  --cal-win-3: rgba(200, 245, 96, 0.36);
+  --cal-win-4: rgba(200, 245, 96, 0.55);
+  --cal-win-ink: #e4fbb0;
+  --cal-loss-1: rgba(255, 138, 91, 0.12);
+  --cal-loss-2: rgba(255, 138, 91, 0.22);
+  --cal-loss-3: rgba(255, 138, 91, 0.36);
+  --cal-loss-4: rgba(255, 138, 91, 0.55);
+  --cal-loss-ink: #ffd5c4;
+  --cal-ring: #c8f560;
+}
+
+.nl-cal-day.is-win.lvl-1 { background: var(--cal-win-1); }
+.nl-cal-day.is-win.lvl-2 { background: var(--cal-win-2); }
+.nl-cal-day.is-win.lvl-3 { background: var(--cal-win-3); }
+.nl-cal-day.is-win.lvl-4 { background: var(--cal-win-4); }
+.nl-cal-day.is-loss.lvl-1 { background: var(--cal-loss-1); }
+.nl-cal-day.is-loss.lvl-2 { background: var(--cal-loss-2); }
+.nl-cal-day.is-loss.lvl-3 { background: var(--cal-loss-3); }
+.nl-cal-day.is-loss.lvl-4 { background: var(--cal-loss-4); }
+
+/* Interest-only days: no trade, so no fill, only a faint outline. */
+.nl-cal-day.is-quiet {
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.nl-cal-day.is-today::after {
+  content: "";
+  position: absolute;
+  bottom: 6px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 50%;
+  background: var(--foreground);
+}
+
+/* Brand-green ring with a gap, so it reads on lime and coral tiles alike. */
+.nl-cal-day.is-selected {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--cal-ring);
+  transform: scale(1.04);
+  z-index: 1;
+}
+
+.nl-cal-day:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--cal-ring);
+}
+
+.nl-cal-date {
   color: var(--muted);
   font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.nl-cal-day.is-win .nl-cal-date { color: var(--cal-win-ink); opacity: 0.65; }
+.nl-cal-day.is-loss .nl-cal-date { color: var(--cal-loss-ink); opacity: 0.65; }
+
+.nl-cal-amount {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* One ink per side that holds on every step of its scale. */
+.nl-cal-day.is-win .nl-cal-amount { color: var(--cal-win-ink); }
+.nl-cal-day.is-loss .nl-cal-amount { color: var(--cal-loss-ink); }
+.nl-cal-day.is-quiet .nl-cal-amount { color: var(--muted); font-weight: 500; }
+
+.nl-cal-detail,
+.nl-cal-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0;
+  /* Leave room for a second line when a selected day's breakdown wraps. */
+  min-block-size: 59px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.nl-cal-hint {
+  font-size: 12px;
+}
+
+.nl-cal-detail b {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.nl-cal-detail .metric-number {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.nl-cal-detail .is-up { color: var(--accent); }
+.nl-cal-detail .is-down { color: var(--danger); }
+
+.nl-cal-mobile-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.nl-cal-breakdown {
+  margin: 0;
+  padding: 0 18px 16px;
+}
+
+.nl-cal-breakdown > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.nl-cal-breakdown dt { color: var(--muted); }
+.nl-cal-breakdown dd { margin: 0; font-weight: 700; }
+.nl-cal-breakdown .is-up { color: var(--accent); }
+.nl-cal-breakdown .is-down { color: var(--danger); }
+
+@media (max-width: 1023px) {
+  .nl-cal-card {
+    --cal-day-height: 54px;
+    gap: 16px;
+    padding: 16px;
+    border-radius: 22px;
+  }
+
+  .nl-cal-grid {
+    gap: 4px;
+  }
+
+  .nl-cal-day {
+    border-radius: 12px;
+  }
+
+  .nl-cal-amount {
+    font-size: 11px;
+  }
+
+  .nl-cal-net {
+    font-size: 28px;
+  }
+
+  /* Finger-sized month controls: 40px buttons with a 44px tap area. */
+  .nl-cal .nl-sec-head {
+    align-items: center;
+  }
+
+  .nl-cal-nav {
+    gap: 4px;
+  }
+
+  .nl-cal-nav button {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+
+  .nl-cal-nav button::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+  }
+
+  .nl-cal-nav svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .nl-cal-month {
+    min-width: 72px;
+    font-size: 14px;
+  }
+
+  .nl-cal-month-long { display: none; }
+  .nl-cal-month-short { display: inline; }
 }
 
 /* ============================================================ PHONE · CHART DECLUTTER

@@ -85,12 +85,22 @@ function useReleaseMoves(pairs: string[], releasedAt: number | null) {
     if (releasedAt === null || !key) return;
     const release = releasedAt;
     let cancelled = false;
+    let retried = false;
+    let retryTimer: number | undefined;
+    const pairCount = key.split(",").length;
+    // After the window closes only its first hour matters, so ask for that
+    // fixed slice (ending 5 minutes past the window) instead of every M5 candle
+    // since the release: ~2,000 per pair for a week-old event before. A slice
+    // with an end time is also immutable, so the server caches it.
+    const settledAt = release + (NEWS_WINDOW_MINUTES + 5) * 60_000;
     async function load() {
       const moves = await releaseMoveCache.load(resultKey, async () => {
-        const count = Math.min(5_000, Math.ceil((Date.now() - release) / 300_000) + 3);
+        const query = Date.now() >= settledAt
+          ? `count=${NEWS_WINDOW_MINUTES / 5 + 4}&to=${encodeURIComponent(new Date(settledAt).toISOString())}`
+          : `count=${Math.min(5_000, Math.ceil((Date.now() - release) / 300_000) + 3)}`;
         const entries = await Promise.all(key.split(",").map(async (instrument) => {
           try {
-            const response = await fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=M5&count=${count}`), { credentials: "include", cache: "no-store", signal: AbortSignal.timeout(12_000) });
+            const response = await fetch(apiUrl(`/api/oanda/candles?instrument=${instrument}&granularity=M5&${query}`), { credentials: "include", cache: "no-store", signal: AbortSignal.timeout(12_000) });
             const series = response.ok ? (await response.json() as { data?: CandleSeries }).data : undefined;
             if (series?.instrument !== instrument || series.granularity !== "M5") return null;
             const candles = series?.source === "oanda" ? series.candles : [];
@@ -116,10 +126,18 @@ function useReleaseMoves(pairs: string[], releasedAt: number | null) {
           }
         }));
         return Object.fromEntries(entries.filter((entry) => entry !== null));
-      }, (value) => Object.keys(value).length === key.split(",").length
-        && Date.now() >= release + (NEWS_WINDOW_MINUTES + 5) * 60_000
-        ? 24 * 60 * 60_000 : MOVE_REFRESH_MS);
-      if (!cancelled) setResult({ key: resultKey, moves });
+      }, (value) => Date.now() < settledAt ? MOVE_REFRESH_MS
+        // Settled: a complete read is final; a read missing a pair (one failed
+        // request) is not kept, so the retry below and later opens fetch again.
+        : Object.keys(value).length === pairCount ? 24 * 60 * 60_000 : 0);
+      if (cancelled) return;
+      setResult({ key: resultKey, moves });
+      // Past the window nothing polls, so one failed pair would otherwise stay
+      // "Unavailable" until the sheet is reopened. Retry once.
+      if (!retried && Date.now() >= settledAt && Object.keys(moves).length < pairCount) {
+        retried = true;
+        retryTimer = window.setTimeout(() => void load(), 3_000);
+      }
     }
     void load();
     // Once the window has closed the numbers are final: one read, no polling.
@@ -133,6 +151,7 @@ function useReleaseMoves(pairs: string[], releasedAt: number | null) {
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      window.clearTimeout(retryTimer);
     };
   }, [key, releasedAt, resultKey]);
   return {

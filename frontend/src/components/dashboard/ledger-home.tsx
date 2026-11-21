@@ -12,7 +12,7 @@
 
 import Link from "next/link";
 import { useLayoutEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Check } from "lucide-react";
 import {
   AccountAmountChart,
   AccountRangeControl,
@@ -20,7 +20,6 @@ import {
   type AccountChartRange,
 } from "@/components/dashboard/account-amount-chart";
 import { NewsImpactSheet } from "@/components/dashboard/news-impact-sheet";
-import { WeeklyReview } from "@/components/dashboard/weekly-review";
 import { useHomeSectionReady } from "@/components/dashboard/home-loading-boundary";
 import type { HomeCurrentPosition } from "@/components/dashboard/home-rail";
 import { TopPairSearch } from "@/components/layout/top-pair-search";
@@ -37,6 +36,7 @@ import type { PublicNewsRun } from "@/lib/news/news-straddle-v3";
 import { pendingLevelPrice, pendingStatusLabel, pendingTimingNote } from "@/lib/pending-entry/plain-language";
 import { getMarketCondition } from "@/lib/strategy/session";
 import { useScrolledPast } from "@/lib/use-scrolled-past";
+import { PnlCalendar } from "@/components/dashboard/pnl-calendar";
 import type { AccountBalanceHistoryPoint, AccountSummary } from "@/types/forex";
 import type { PendingManualEntry } from "@/types/pending-entry";
 
@@ -242,6 +242,7 @@ function LedgerHero({
   openPL,
   historyState = "ready",
   financialUpdatedAt,
+  wide,
 }: {
   account: AccountSummary;
   history: AccountBalanceHistoryPoint[];
@@ -249,6 +250,7 @@ function LedgerHero({
   openPL: number;
   historyState?: LoadState;
   financialUpdatedAt?: string | null;
+  wide: boolean;
 }) {
   const historyAvailable = hasData(historyState);
   const [range, setRange] = useState<AccountChartRange>("1d");
@@ -259,7 +261,6 @@ function LedgerHero({
     [account.balance, history, historyAvailable, quotaDate],
   );
   const quotaMoney = new Intl.NumberFormat("en-US", { style: "currency", currency: account.currency });
-  const wide = useWide();
   const { ref: balanceRef, scrolledPast } = useScrolledPast<HTMLHeadingElement>();
   const series = useMemo(
     () => buildAccountAmountSeries({ nav: account.nav, unrealizedPL: account.unrealizedPL, history, range }),
@@ -335,19 +336,40 @@ function LedgerHero({
         </div>
         {(["daily", "weekly"] as const).map((period) => {
           const result = quota?.[period];
+          // A daily target at or below zero means earlier gains this week
+          // already cover today's pace, so there is nothing left to make.
+          const covered = result ? result.target <= 0 : false;
+          const met = result ? covered || result.realized >= result.target : false;
+          const progress = !result ? 0 : met ? 100 : Math.max(0, Math.min(100, (result.realized / result.target) * 100));
+          const label = period === "daily" ? "Daily quota" : "Weekly quota";
           return (
-            <div key={period}>
-              <dt>{period === "daily" ? "Daily quota" : "Weekly quota"}</dt>
-              <dd className="metric-number">
-                {result ? <>
-                  <span className={tone(result.realized)}>{signedMoney(result.realized, account.currency)}</span>
-                  <span className="nl-stat-quota-target">
-                    {result.realized >= result.target
-                      ? " · Quota met"
-                      : ` of ${quotaMoney.format(Math.max(0, result.target))}`}
+            <div key={period} className="nl-stat-quota">
+              <dt>
+                {label}
+                {result ? (
+                  <span className={`nl-quota-status${met ? " is-met" : ""}`}>
+                    {met ? <><Check aria-hidden="true" />Met</> : `${Math.floor(progress)}%`}
                   </span>
-                </> : "—"}
+                ) : null}
+              </dt>
+              <dd className={`metric-number ${result ? tone(result.realized) : ""}`}>
+                {result ? signedMoney(result.realized, account.currency) : "—"}
               </dd>
+              {result ? <>
+                <span
+                  className={`nl-quota-bar${met ? " is-met" : ""}`}
+                  role="progressbar"
+                  aria-label={`${label} progress`}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(progress)}
+                >
+                  <span style={{ width: `${progress}%` }} />
+                </span>
+                <span className="nl-quota-note">
+                  {covered ? "Covered by earlier gains" : `Target ${quotaMoney.format(result.target)}`}
+                </span>
+              </> : null}
             </div>
           );
         })}
@@ -818,6 +840,7 @@ export function LedgerHome({
   error: string | null;
   loadState?: DashboardLoadState;
 }) {
+  const wide = useWide();
   const positionsReady = hasData(loadState.positions) && hasData(loadState.journal);
   const positionState = loadState.positions === "error" || loadState.journal === "error" ? "error" : "loading";
   // todayKey is the server's ET date, so this label matches on both renders.
@@ -843,7 +866,7 @@ export function LedgerHome({
           />
         ) : null}
         {account ? (
-          <LedgerHero account={account} history={history} todayKey={todayKey} openPL={openPL} historyState={loadState.history} financialUpdatedAt={financialUpdatedAt} />
+          <LedgerHero account={account} history={history} todayKey={todayKey} openPL={openPL} historyState={loadState.history} financialUpdatedAt={financialUpdatedAt} wide={wide} />
         ) : (
           <section className="nl-hero" aria-label="Account overview">
             <div className="nl-hero-copy">
@@ -862,13 +885,15 @@ export function LedgerHome({
               onCancel={onCancelPending}
               onEdit={onEditPending}
             /> : <DeferredCard title="Waiting orders" state={loadState.pending} />}
+          </div>
+          <aside className="nl-home-aside" aria-label="Upcoming news and today's results">
+            <LedgerNews positions={newsPositions} />
+            {hasData(loadState.journal) ? <LedgerTodayCard today={today} currency={account?.currency ?? "USD"} /> : <DeferredCard title="Today · closed" state={loadState.journal} />}
+          </aside>
+          <div className="nl-home-history">
             {hasData(loadState.journal) ? <LedgerActivity items={activity} currency={account?.currency ?? "USD"} /> : <DeferredCard title="Recent activity" state={loadState.journal} />}
           </div>
-          <aside className="nl-home-aside" aria-label="Today and upcoming">
-            {hasData(loadState.journal) ? <LedgerTodayCard today={today} currency={account?.currency ?? "USD"} /> : <DeferredCard title="Today · closed" state={loadState.journal} />}
-            <LedgerNews positions={newsPositions} />
-          </aside>
-          <WeeklyReview currency={account?.currency ?? "USD"} />
+          {hasData(loadState.history) ? <PnlCalendar history={history} todayKey={todayKey} currency={account?.currency ?? "USD"} mobile={!wide} /> : null}
         </div>
       </div>
     </div>

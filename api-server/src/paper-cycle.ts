@@ -53,6 +53,7 @@ import { runEurUsdMoveGateV1Shadow } from "./eur-usd-move-gate-v1-shadow.js";
 import { MAJOR_INSTRUMENTS, type MajorInstrument } from "../../frontend/src/types/forex.js";
 import { measureBrokerExecution, requiresBrokerCloseConfirmation } from "./execution-measurement.js";
 import { projectRiskReporting } from "./risk-reporting.js";
+import { brokerClosedLedger, type BrokerLedger } from "./broker-ledger.js";
 import { reconcileClosedExecutionMeasurements } from "./reconcile-execution-measurements.js";
 
 const STRATEGY_NAME = "deterministic-forex";
@@ -1989,39 +1990,46 @@ async function importPracticeBrokerHistory(userId: string) {
       WHERE metadata->>'brokerTradeId' IS NOT NULL`,
   );
   const linkedIds = new Set(linked.rows.map((row) => row.broker_trade_id));
-  let imported = 0;
+  // De-duplicated: one statement cannot upsert the same key twice.
+  const pending = [...new Map(brokerTrades
+    .filter((trade) => !linkedIds.has(trade.brokerTradeId))
+    .map((trade) => [trade.brokerTradeId, trade])).values()];
+  if (!pending.length) return { imported: 0, unavailable: false };
 
-  for (const trade of brokerTrades) {
-    if (linkedIds.has(trade.brokerTradeId)) continue;
-    const pair = trade.instrument.replace("_", "/");
-    const result = trade.realizedPL === null ? "breakeven" : trade.realizedPL > 0 ? "win" : trade.realizedPL < 0 ? "loss" : "breakeven";
-    const saved = await query<{ id: string }>(
-      `INSERT INTO paper_trades(
-         user_id,legacy_id,origin,pair,direction,status,result,opened_at,closed_at,entry,stop,target,exit,result_r,paper_pl,reason,notes
-       ) VALUES($1,$2,'manual',$3,$4,'closed',$5,$6,$7,$8,$8,$8,$9,NULL,$10,'OANDA Practice account history',$11)
-       ON CONFLICT(user_id,legacy_id) DO UPDATE SET
-         closed_at=EXCLUDED.closed_at, exit=EXCLUDED.exit, result=EXCLUDED.result, paper_pl=EXCLUDED.paper_pl, notes=EXCLUDED.notes, updated_at=now()
-       RETURNING id`,
-      [
-        userId,
-        `oanda-trade:${trade.brokerTradeId}`,
-        pair,
-        trade.direction,
-        result,
-        trade.openedAt,
-        trade.closedAt,
-        trade.entry,
-        trade.exit,
-        // Structured amount, so the journal/dashboard never need to scrape it
-        // back out of the note below (which stays for a human-readable audit
-        // trail, not as the only place this number lives).
-        trade.realizedPL,
-        trade.realizedPL === null ? "Broker P&L unavailable." : `Broker realized P&L: ${trade.realizedPL.toFixed(2)} USD.`,
-      ],
-    );
-    if (saved.rowCount) imported += 1;
-  }
-  return { imported, unavailable: false };
+  // One statement for the whole history (up to 500 trades) instead of one
+  // round trip per trade, and rows whose broker values have not changed are
+  // left alone, so a refresh no longer rewrites every row every minute.
+  const saved = await query<{ id: string }>(
+    `INSERT INTO paper_trades(
+       user_id,legacy_id,origin,pair,direction,status,result,opened_at,closed_at,entry,stop,target,exit,result_r,paper_pl,reason,notes
+     )
+     SELECT $1,t.legacy_id,'manual',t.pair,t.direction,'closed',t.result,t.opened_at,t.closed_at,t.entry,t.entry,t.entry,t.exit,NULL,t.paper_pl,'OANDA Practice account history',t.notes
+       FROM unnest($2::text[],$3::text[],$4::text[],$5::text[],$6::timestamptz[],$7::timestamptz[],$8::numeric[],$9::numeric[],$10::numeric[],$11::text[])
+         AS t(legacy_id,pair,direction,result,opened_at,closed_at,entry,exit,paper_pl,notes)
+     ON CONFLICT(user_id,legacy_id) DO UPDATE SET
+       closed_at=EXCLUDED.closed_at, exit=EXCLUDED.exit, result=EXCLUDED.result, paper_pl=EXCLUDED.paper_pl, notes=EXCLUDED.notes, updated_at=now()
+     WHERE (paper_trades.closed_at, paper_trades.exit, paper_trades.result, paper_trades.paper_pl, paper_trades.notes)
+           IS DISTINCT FROM (EXCLUDED.closed_at, EXCLUDED.exit, EXCLUDED.result, EXCLUDED.paper_pl, EXCLUDED.notes)
+     RETURNING id`,
+    [
+      userId,
+      pending.map((trade) => `oanda-trade:${trade.brokerTradeId}`),
+      pending.map((trade) => trade.instrument.replace("_", "/")),
+      pending.map((trade) => trade.direction),
+      pending.map((trade) => trade.realizedPL === null ? "breakeven" : trade.realizedPL > 0 ? "win" : trade.realizedPL < 0 ? "loss" : "breakeven"),
+      pending.map((trade) => trade.openedAt),
+      pending.map((trade) => trade.closedAt),
+      pending.map((trade) => trade.entry),
+      pending.map((trade) => trade.exit),
+      // Structured amount, so the journal/dashboard never need to scrape it
+      // back out of the note below (which stays for a human-readable audit
+      // trail, not as the only place this number lives).
+      pending.map((trade) => trade.realizedPL),
+      pending.map((trade) => trade.realizedPL === null ? "Broker P&L unavailable." : `Broker realized P&L: ${trade.realizedPL.toFixed(2)} USD.`),
+    ],
+  );
+  // Counts rows inserted or actually changed.
+  return { imported: saved.rowCount ?? 0, unavailable: false };
 }
 
 function journalTradeWhere(filter: JournalTradeFilter): string {
@@ -2052,9 +2060,13 @@ export async function journalTradeLog(
     closedManualWindow?: { from: string; to: string };
   } = {},
 ) {
+  // Wins/losses are decided by the broker's P/L, which is only known after the
+  // overlay below, so those filters read every closed row and page in memory.
+  const cashFilter = !closedManualWindow && (filter === "wins" || filter === "losses") ? filter : null;
   const where = closedManualWindow
     ? "WHERE origin = 'manual' AND status = 'closed' AND closed_at >= $4 AND closed_at < $5"
-    : journalTradeWhere(filter);
+    : cashFilter ? "WHERE status = 'closed'" : journalTradeWhere(filter);
+  const sqlLimit = cashFilter ? null : limit, sqlOffset = cashFilter ? 0 : offset;
   const rows = await query(
     `SELECT id, origin, chart_trade_id AS "chartTradeId", pair, direction, status, result, opened_at AS "openedAt", closed_at AS "closedAt",
             entry, stop, target, exit, result_r AS "resultR", paper_pl AS "paperPl", reason, notes, sequence, outcome,
@@ -2073,7 +2085,9 @@ export async function journalTradeLog(
               manual.entry::float, manual.stop::float, manual.target::float, manual.exit::float, manual.result_r::float,
               manual.paper_pl::float, manual.reason, manual.notes, NULL::text AS sequence, NULL::text AS outcome,
                pending.instrument AS instrument_code, NULL::float AS nominal_risk_amount,
-               NULL::float AS signal_price, NULL::float AS actual_fill_price, pending.broker_trade_id,
+               NULL::float AS signal_price, NULL::float AS actual_fill_price,
+               -- Broker-history imports carry their OANDA id in legacy_id.
+               COALESCE(pending.broker_trade_id, CASE WHEN manual.legacy_id LIKE 'oanda-trade:%' THEN substring(manual.legacy_id FROM 13) END) AS broker_trade_id,
                NULLIF(pending.metadata->>'oandaEntrySpreadCost','')::float AS entry_half_spread_cost,
                NULLIF(pending.metadata->>'oandaEntryCommission','')::float AS entry_commission,
                NULLIF(pending.metadata->>'oandaEntryGuaranteedExecutionFee','')::float AS entry_guaranteed_execution_fee,
@@ -2143,9 +2157,32 @@ export async function journalTradeLog(
      ${where}
      ORDER BY CASE WHEN status = 'closed' THEN closed_at ELSE opened_at END DESC, opened_at DESC
      LIMIT $2 OFFSET $3`,
-    closedManualWindow ? [userId, limit, offset, closedManualWindow.from, closedManualWindow.to] : [userId, limit, offset],
+    closedManualWindow ? [userId, limit, offset, closedManualWindow.from, closedManualWindow.to] : [userId, sqlLimit, sqlOffset],
   );
-  return projectRiskReporting(userId, rows.rows);
+  const projected = withBrokerCash(await projectRiskReporting(userId, rows.rows), await brokerClosedLedger());
+  if (!cashFilter) return projected;
+  const matching = projected.filter((row) => typeof row.paperPl === "number" && (cashFilter === "wins" ? row.paperPl > 0 : row.paperPl < 0));
+  return limit === null ? matching.slice(offset) : matching.slice(offset, offset + limit);
+}
+
+/**
+ * Money on a closed journal row is what OANDA booked, never a simulation:
+ * - a row whose trade reached OANDA takes the broker's realized P/L;
+ * - a strategy row that never reached OANDA is paper only and carries no
+ *   money (its R stays), so it cannot move dollar totals.
+ * Manual rows already store the broker's figure; they pass through unless the
+ * ledger disagrees. If OANDA cannot be read, broker-backed rows keep their
+ * stored value and the summary reports the ledger as unavailable.
+ */
+function withBrokerCash(rows: Record<string, any>[], ledger: BrokerLedger | null) {
+  return rows.map((row) => {
+    if (row.status !== "closed" || row.brokerExecutionStatus === "rejected") return row;
+    const brokerId = typeof row.brokerTradeId === "string" ? row.brokerTradeId : null;
+    const booked = brokerId ? ledger?.trades.get(brokerId) : undefined;
+    if (booked) return { ...row, paperPl: booked.realizedPL, brokerFinancing: booked.financing, brokerSpreadCost: booked.spreadCost, moneySource: "broker" };
+    if (row.origin === "strategy" && !brokerId) return { ...row, paperPl: null, moneySource: "paper-only" };
+    return row;
+  });
 }
 
 /**
@@ -2166,7 +2203,15 @@ export async function journalTradeSummary(userId: string) {
     total: rows.length, closedCount: closed.length, winRate: cash.length ? wins.length / cash.length : null,
     avgR: verified.length >= 5 ? verified.reduce((sum, row) => sum + row.resultR, 0) / verified.length : null,
     riskCoverage: { included: verified.length, excluded: closed.length - verified.length, percent: closed.length ? 100 * verified.length / closed.length : 0, reason: "Initial risk or cost-complete net P/L not verified" },
-    wonLost: { won: wins.reduce((sum, row) => sum + row.paperPl, 0), lost: -losses.reduce((sum, row) => sum + row.paperPl, 0), wins: wins.length, losses: losses.length },
+    wonLost: {
+      won: wins.reduce((sum, row) => sum + row.paperPl, 0), lost: -losses.reduce((sum, row) => sum + row.paperPl, 0), wins: wins.length, losses: losses.length,
+      // Overnight interest OANDA booked on these trades; null when the broker
+      // ledger could not be read. won − lost + financing is the account's change.
+      financing: closed.some(row => row.moneySource === "broker") ? closed.reduce((sum, row) => sum + (typeof row.brokerFinancing === "number" ? row.brokerFinancing : 0), 0) : null,
+      // Half-spread OANDA charged on every open and close fill. Already inside
+      // won/lost (it is in the fill price), so it is a breakdown, not a deduction.
+      spreadCost: closed.some(row => typeof row.brokerSpreadCost === "number") ? closed.reduce((sum, row) => sum + (typeof row.brokerSpreadCost === "number" ? row.brokerSpreadCost : 0), 0) : null,
+    },
     breakeven: cash.filter(row => row.paperPl === 0).length, moneyExcluded: closed.length - cash.length,
     today: { wins: today.filter(row => row.paperPl > 0).length, losses: today.filter(row => row.paperPl < 0).length, realizedPL: today.length ? today.reduce((sum, row) => sum + row.paperPl, 0) : null },
     openTrades: rows.filter(row => row.status === "open"),

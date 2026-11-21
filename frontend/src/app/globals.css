@@ -274,9 +274,23 @@ body {
   }
 }
 
-button,
-a {
+html {
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Long presses on touch devices should only select text in editable fields. */
+@media (hover: none) and (pointer: coarse) {
+  body {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  :is(input, textarea, [contenteditable]:not([contenteditable="false"])) {
+    -webkit-touch-callout: default;
+    -webkit-user-select: text;
+    user-select: text;
+  }
 }
 
 .navigation-progress {
@@ -10461,12 +10475,10 @@ html:has(.pending-entry-backdrop) .mobile-dock {
   box-shadow: none !important;
 }
 
-.account-chart .recharts-tooltip-cursor,
+/* While scrubbing: a thin dashed guide under the pointer (from the Tooltip's
+   cursor props). Rectangle cursors stay hidden. */
 .account-chart .recharts-rectangle.recharts-tooltip-cursor {
   display: none !important;
-  fill: transparent !important;
-  stroke: none !important;
-  opacity: 0 !important;
 }
 
 .account-chart .recharts-xAxis .recharts-cartesian-axis-tick:first-child text {
@@ -10477,26 +10489,49 @@ html:has(.pending-entry-backdrop) .mobile-dock {
   text-anchor: end;
 }
 
+/* Follows the scrub: `left` is set inline from the pointer, clamped in view. */
 .account-chart-active-label {
   position: absolute;
   top: 0;
   left: 50%;
   z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
   transform: translateX(-50%);
-  border-radius: 999px;
+  border-radius: 12px;
   background: var(--foreground);
   color: var(--background);
   padding: 0.35rem 0.7rem;
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  white-space: nowrap;
+  line-height: 1.15;
   pointer-events: none;
 }
+
+.account-chart-active-value {
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.account-chart-active-meta {
+  font-size: 0.68rem;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+/* Brighter tones: the pill is dark in light mode. */
+.account-chart-active-meta .is-up { color: #a6e36b; }
+.account-chart-active-meta .is-down { color: #ff9a7a; }
 
 .dark .account-chart-active-label {
   background: #f4f4f5;
   color: #09090b;
 }
+
+.dark .account-chart-active-meta .is-up { color: var(--accent); }
+.dark .account-chart-active-meta .is-down { color: var(--danger); }
 
 .account-range-row {
   display: flex;

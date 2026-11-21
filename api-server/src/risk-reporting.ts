@@ -6,37 +6,88 @@ import { pipSizeFor } from "../../frontend/src/lib/instruments/catalog.js";
 import { getAccountSummary } from "../../frontend/src/lib/oanda/client.js";
 import { readRiskNetCash } from "./risk-net-cash.js";
 type Cash = Awaited<ReturnType<typeof readRiskNetCash>>;
-const closedCash = new Map<string, { until: number; value: Cash }>();
-async function readClosedCash(accountId: string, tradeId: string) {
+/**
+ * A CLOSED trade's fills never change, so its net cash is cached for the life
+ * of the process. Each read is 3+ sequential OANDA calls; a 5-minute TTL made
+ * the journal re-pay ~58 of them (~11s) on every cold load. The map holds the
+ * in-flight promise too, so the journal page and its summary — which project
+ * the same rows concurrently — share one read per trade. A failed or
+ * not-yet-closed read is dropped so the next request retries it.
+ */
+const CLOSED_CASH_LIMIT = 2048;
+const CLOSED_CASH_CONCURRENCY = 8;
+const closedCash = new Map<string, Promise<Cash>>();
+function readClosedCash(accountId: string, tradeId: string): Promise<Cash> {
   const key = `${accountId}:${tradeId}`, cached = closedCash.get(key);
-  if (cached && cached.until > Date.now()) return cached.value;
-  const value = await readRiskNetCash(tradeId).catch(() => null);
-  if (value?.state === "CLOSED") {
-    if (closedCash.size >= 512) closedCash.delete(closedCash.keys().next().value!);
-    closedCash.set(key, { until: Date.now() + 300_000, value });
-  }
-  return value?.state === "CLOSED" ? value : null;
+  if (cached) return cached;
+  const pending = readRiskNetCash(tradeId).catch(() => null).then(value => value?.state === "CLOSED" ? value : null);
+  if (closedCash.size >= CLOSED_CASH_LIMIT) closedCash.delete(closedCash.keys().next().value!);
+  closedCash.set(key, pending);
+  void pending.then(value => { if (!value && closedCash.get(key) === pending) closedCash.delete(key); });
+  return pending;
+}
+
+/** Reads every key with at most `limit` OANDA reads in flight at once. */
+async function readClosedCashAll(accountId: string, tradeIds: string[], limit = CLOSED_CASH_CONCURRENCY) {
+  const results = new Map<string, Cash>();
+  const queue = [...new Set(tradeIds)];
+  await Promise.all(Array.from({ length: Math.min(limit, queue.length) }, async () => {
+    for (let id = queue.shift(); id !== undefined; id = queue.shift()) results.set(id, await readClosedCash(accountId, id));
+  }));
+  return results;
+}
+
+/**
+ * Risk reporting only reads the account's id, currency and connection state,
+ * which do not move between requests, so one OANDA summary serves a minute of
+ * journal reads. A disconnected result is never cached, so it retries at once.
+ */
+const RISK_ACCOUNT_TTL_MS = 60_000;
+let riskAccountCache: { until: number; value: Promise<Awaited<ReturnType<typeof getAccountSummary>>> } | null = null;
+function riskAccount() {
+  if (riskAccountCache && riskAccountCache.until > Date.now()) return riskAccountCache.value;
+  const value = getAccountSummary();
+  const entry = { until: Date.now() + RISK_ACCOUNT_TTL_MS, value };
+  riskAccountCache = entry;
+  void value.then(
+    result => { if (result.status.state !== "connected" && riskAccountCache === entry) riskAccountCache = null; },
+    () => { if (riskAccountCache === entry) riskAccountCache = null; },
+  );
+  return value;
 }
 
 /** Read-time compatibility only; never rewrite a legacy financial record. */
 export async function projectRiskReporting(userId: string, rows: Record<string, any>[]): Promise<Record<string, any>[]> {
   if (!rows.length) return [];
-  const plans = await query<{ paper_trade_id: string; metadata: Record<string, any> }>(
-    "SELECT paper_trade_id,metadata FROM pending_manual_entries WHERE user_id=$1 AND paper_trade_id=ANY($2::uuid[])",
-    [userId, rows.map(row => row.id)],
-  );
+  const ids = rows.map(row => row.id);
+  // Independent reads: run them together instead of one round trip after another.
+  const [plans, strategies, cachedAccount] = await Promise.all([
+    query<{ paper_trade_id: string; metadata: Record<string, any> }>(
+      "SELECT paper_trade_id,metadata FROM pending_manual_entries WHERE user_id=$1 AND paper_trade_id=ANY($2::uuid[])",
+      [userId, ids],
+    ),
+    query<{ id: string; risk: number | null; decision_time: Date }>("SELECT t.id,t.nominal_risk_amount::float AS risk,t.decision_time FROM paper_strategy_trades t WHERE t.user_id=$1 AND t.id=ANY($2::uuid[]) AND NOT EXISTS (SELECT 1 FROM practice_order_intents i WHERE i.paper_trade_id=t.id AND i.status='rejected')", [userId, ids]),
+    // Only rows with a risk plan need it; an OANDA failure must not fail the rest.
+    riskAccount().catch(() => null),
+  ]);
   const evidence = new Map(plans.rows.map(row => [row.paper_trade_id, row.metadata]));
-  const strategies = await query<{ id: string; risk: number | null; decision_time: Date }>("SELECT t.id,t.nominal_risk_amount::float AS risk,t.decision_time FROM paper_strategy_trades t WHERE t.user_id=$1 AND t.id=ANY($2::uuid[]) AND NOT EXISTS (SELECT 1 FROM practice_order_intents i WHERE i.paper_trade_id=t.id AND i.status='rejected')", [userId, rows.map(row => row.id)]);
   const strategyEvidence = new Map(strategies.rows.map(row => [row.id, strategyRiskEstimate(row.id, row.risk, row.decision_time)]));
-  const account = plans.rows.some(row => row.metadata?.initialRiskPlan) ? await getAccountSummary() : null;
-  const output: Record<string, any>[] = [];
-  for (const row of rows) {
+  const account = plans.rows.some(row => row.metadata?.initialRiskPlan) ? cachedAccount : null;
+  const prepared = rows.map(row => {
     const metadata = evidence.get(String(row.id));
     const plan = metadata?.initialRiskPlan as InitialRiskPlan | undefined;
     const openedAt = new Date(row.openedAt).toISOString();
     const documentedRisk = verifiedInitialRisk(plan, openedAt, plan?.positionKey ?? String(row.id));
-    const cash = row.status === "closed" && documentedRisk !== null && account?.status.state === "connected" && account.data.currency === "USD" && plan?.brokerAccountId === account.data.id && typeof metadata?.brokerTradeId === "string"
-      ? await readClosedCash(account.data.id, metadata.brokerTradeId) : null;
+    const cashTradeId = row.status === "closed" && documentedRisk !== null && account?.status.state === "connected" && account.data.currency === "USD" && plan?.brokerAccountId === account.data.id && typeof metadata?.brokerTradeId === "string"
+      ? metadata.brokerTradeId as string : null;
+    return { row, metadata, plan, openedAt, cashTradeId };
+  });
+  const cashByTrade = account?.status.state === "connected"
+    ? await readClosedCashAll(account.data.id, prepared.flatMap(item => item.cashTradeId ? [item.cashTradeId] : []))
+    : new Map<string, Cash>();
+  const output: Record<string, any>[] = [];
+  for (const { row, metadata, plan, openedAt, cashTradeId } of prepared) {
+    const cash = cashTradeId ? cashByTrade.get(cashTradeId) ?? null : null;
     const corrected = verifiedTradeR({ ...row, id: String(row.id), openedAt, resultR: row.resultR ?? null,
       maxAdverseExcursionUsd: metadata?.observedExcursions?.maeUsd ?? null,
       maxFavorableExcursionUsd: metadata?.observedExcursions?.mfeUsd ?? null,

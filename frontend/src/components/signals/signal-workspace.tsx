@@ -197,6 +197,8 @@ const DEFAULT_PAIR_PICKER_INSTRUMENTS = [
 type StoredChartPreferences = {
   version: 1;
   absorptionVersion?: 1;
+  /** Set once "Session colors" exists, so older saves start with it on. */
+  sessionColorsVersion?: 1;
   timeframe: ChartTimeframe;
   range: ChartRange;
   chartVariant: ChartVariant;
@@ -226,7 +228,7 @@ function readStoredChartPreferences(): StoredChartPreferences | null {
     // turned off. Filtering keeps the rest of the preferences usable.
     return {
       ...(parsed as StoredChartPreferences),
-      enabledIndicators: [...new Set([...(parsed.absorptionVersion ? [] : ["heavy-absorption" as ChartIndicator]), ...parsed.enabledIndicators.filter((indicator) =>
+      enabledIndicators: [...new Set([...(parsed.absorptionVersion ? [] : ["heavy-absorption" as ChartIndicator]), ...(parsed.sessionColorsVersion ? [] : ["session-colors" as ChartIndicator]), ...parsed.enabledIndicators.filter((indicator) =>
         CHART_INDICATORS.some((option) => option.value === indicator),
       )])],
     };
@@ -2488,23 +2490,10 @@ export function SignalWorkspace({
   // WebView, which starts from next-themes' own default/system resolution
   // and has no way to know the app's in-settings theme choice otherwise.
   const { setTheme } = useTheme();
-  // Strategy evaluation reads candles for every pair, so it must never block
-  // the first chart paint on either the workspace or native embed.
-  const [loadedStrategySetups, setLoadedStrategySetups] = useState<StrategySetup[] | null>(null);
-  const strategySetups = loadedStrategySetups ?? initialStrategySetups;
-  useEffect(() => {
-    if (initialStrategySetups.length) return;
-    const controller = new AbortController();
-    void fetch(apiUrl("/api/strategy"), { credentials: "include", signal: controller.signal })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((snapshot: { strategy?: { setups?: StrategySetup[] } } | null) => {
-        if (snapshot?.strategy?.setups) setLoadedStrategySetups(snapshot.strategy.setups);
-      })
-      .catch(() => {
-        // Candidate levels are optional on the chart; it stays usable without them.
-      });
-    return () => controller.abort();
-  }, [embeddedSurfaceOnly, initialStrategySetups]);
+  // The chart no longer fetches /api/strategy (it evaluated every pair, ~1.6s
+  // cold). Setups are optional here: only a caller that already has them
+  // passes them in; otherwise the picker lists every pair and M15 is the start.
+  const strategySetups = initialStrategySetups;
   const workspacePath = pathname.startsWith("/signals") ? "/signals" : "/chart";
   const signals = useMemo(
     () => strategySetups.flatMap(toDisplaySignal),
@@ -2579,6 +2568,7 @@ export function SignalWorkspace({
     const preferences: StoredChartPreferences = {
       version: 1,
       absorptionVersion: 1,
+      sessionColorsVersion: 1,
       timeframe,
       range,
       chartVariant,

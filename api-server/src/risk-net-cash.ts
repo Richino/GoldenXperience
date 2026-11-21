@@ -24,14 +24,15 @@ export async function readRiskNetCash(tradeId: string, read: ReadBroker = suffix
   if (fullyClosed ? remaining !== 0 || floating !== 0 : remaining === 0 || Math.sign(remaining) !== Math.sign(initial)) return null;
   const closeIds = t.closingTransactionIDs ?? [];
   if (closeIds.length > 100 || new Set(closeIds).size !== closeIds.length || closeIds.some(id => !/^\d+$/.test(id))) return null;
-  const opening = await read(`/transactions/${tradeId}`) as { transaction?: Fill };
+  // The opening fill and every closing fill are independent reads; fetch them
+  // together so a trade costs two round trips instead of 2 + closes.
+  const [opening, ...closings] = await Promise.all([tradeId, ...closeIds].map(id => read(`/transactions/${id}`) as Promise<{ transaction?: Fill }>));
   const open = opening.transaction;
   const openCommission = amount(open?.commission), orderUnits = amount(open?.units), openedUnits = amount(open?.tradeOpened?.units), openFee = amount(open?.tradeOpened?.guaranteedExecutionFee);
   if (open?.type !== "ORDER_FILL" || open.tradeOpened?.tradeID !== tradeId || openCommission === null || openCommission < 0 || orderUnits === null || openedUnits === null || openFee === null || openFee < 0 || !Math.abs(orderUnits) || Math.abs(openedUnits) !== Math.abs(initial) || Math.abs(openedUnits) > Math.abs(orderUnits)) return null;
   const entryCosts = openCommission * Math.abs(initial / orderUnits) + openFee;
   let closedUnits = 0, closeCosts = 0, closedFinancing = 0, closedPl = 0;
-  for (const id of closeIds) {
-    const result = await read(`/transactions/${id}`) as { transaction?: Fill };
+  for (const result of closings) {
     const tx = result.transaction;
     const legs = [...(tx?.tradesClosed ?? []), ...(tx?.tradeReduced ? [tx.tradeReduced] : [])].filter(leg => leg.tradeID === tradeId);
     const commission = amount(tx?.commission), units = amount(tx?.units);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import {
   Area,
   AreaChart,
@@ -32,6 +32,7 @@ export type AccountChartPoint = {
 export type AccountChartRange = "1h" | "1d" | "1w" | "1m" | "3m" | "1y" | "all";
 
 const RANGES: AccountChartRange[] = ["1d", "1w", "1m", "3m", "1y"];
+const IOS_SWIPE_EDGE_PX = 24;
 
 const RANGE_CONFIG: Record<AccountChartRange, { tab: string; label: string; durationMs: number; bucketMs: number }> = {
   "1h": { tab: "1H", label: "the last hour", durationMs: 60 * 60_000, bucketMs: 2 * 60_000 },
@@ -511,8 +512,28 @@ export function AccountAmountChart({
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   // Pointer x inside the canvas, so the label can follow the scrub.
   const [activeX, setActiveX] = useState<number | null>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
   const touch = useRef<{ id: number; x: number; y: number; scrubbing: boolean } | null>(null);
   const [touchIndex, setTouchIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!bare || !canvas || !CSS.supports("-webkit-touch-callout", "none")) return;
+
+    // iOS can claim a screen-edge gesture for history navigation before the
+    // first move. Cancel at touchstart, confined to the edges of this chart.
+    function claimEdgeTouch(event: TouchEvent) {
+      if (event.touches.length !== 1 || !event.cancelable) return;
+      const x = event.touches[0]!.clientX;
+      if (x <= IOS_SWIPE_EDGE_PX || x >= window.innerWidth - IOS_SWIPE_EDGE_PX) {
+        event.preventDefault();
+      }
+    }
+
+    canvas.addEventListener("touchstart", claimEdgeTouch, { passive: false });
+    return () => canvas.removeEventListener("touchstart", claimEdgeTouch);
+  }, [bare]);
+
   const values = useMemo(() => series.map((point) => point.value), [series]);
   const axisLabels = useMemo(() => series.map((point) => point.axisLabel), [series]);
   const min = Math.min(...values);
@@ -610,6 +631,7 @@ export function AccountAmountChart({
       )}
 
       <div
+        ref={canvasRef}
         className={`account-chart-canvas${ledger ? "" : " mt-4"}`}
         role="img"
         aria-label={`Account balance over ${RANGE_CONFIG[range].label}`}

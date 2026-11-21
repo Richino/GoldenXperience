@@ -9658,24 +9658,6 @@ html:is(.dark, :not(.dark)) body .gx-fs-dock .menu-popover {
 .nl-pe-plancheck-row .nl-an-modes button { padding-inline: 10px; font-size: 12px; }
 
 /* Journal: Plan review (components/journal/plan-review.tsx). */
-.plan-review { display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); }
-.plan-review-skel { display: block; height: 64px; border-radius: 12px; }
-.plan-review-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.plan-review-head h2 { margin: 0; font-family: var(--font-display); font-size: 20px; font-weight: 700; }
-.plan-review-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
-.plan-review-head > span { flex: none; color: var(--muted-strong); font-size: 13px; font-weight: 600; }
-.plan-review-bar { height: 6px; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--foreground) 8%, transparent); }
-.plan-review-bar i { display: block; height: 100%; border-radius: inherit; background: var(--accent-fill); }
-.plan-review-empty, .plan-review-note { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
-.plan-review-note { padding: 8px 10px; border-radius: 10px; background: var(--pending-soft, color-mix(in srgb, #f5a524 14%, transparent)); color: var(--foreground); }
-.plan-review-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
-.plan-review-group h3 { margin: 0 0 6px; color: var(--muted); font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 10.5px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; }
-.plan-review-group table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.plan-review-group th, .plan-review-group td { padding: 6px 4px; border-top: 1px solid var(--border); text-align: right; }
-.plan-review-group thead th { border-top: 0; color: var(--muted); font-size: 11px; font-weight: 600; }
-.plan-review-group th[scope="row"], .plan-review-group thead th:first-child { text-align: left; font-weight: 600; }
-.plan-review-group .is-up { color: var(--success); }
-.plan-review-group .is-down { color: var(--danger); }
 /* Phones: each question's label above a full-width row of equal, thumb-sized options. */
 @media (max-width: 639px) {
   .nl-pe-plancheck { gap: 12px; padding: 14px; }
@@ -10190,8 +10172,7 @@ html:is(.dark, :not(.dark)) body .nl-mk-analyze.is-busy {
   cursor: progress;
 }
 
-html:is(.dark, :not(.dark)) body .nl-mk-analyze.is-busy::after,
-html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="generating"]::after {
+html:is(.dark, :not(.dark)) body .nl-mk-analyze.is-busy::after {
   content: "";
   position: absolute;
   inset: -3px;
@@ -10202,8 +10183,7 @@ html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="generating
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  html:is(.dark, :not(.dark)) body .nl-mk-analyze.is-busy::after,
-  html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="generating"]::after {
+  html:is(.dark, :not(.dark)) body .nl-mk-analyze.is-busy::after {
     animation: nl-mk-pulse 1.4s ease-out infinite;
   }
 }
@@ -10211,24 +10191,6 @@ html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="generating
 @keyframes nl-mk-pulse {
   0% { opacity: 0.55; transform: scale(0.92); }
   100% { opacity: 0; transform: scale(1.25); }
-}
-
-html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="generating"] {
-  background: var(--pending-soft);
-  color: var(--pending);
-}
-
-html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="review"],
-html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="review"]:hover {
-  background: var(--accent-fill);
-  color: var(--on-accent);
-}
-
-html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="watching"],
-html:is(.dark, :not(.dark)) body .nl-mk-analyze.has-setup[data-setup="watching"]:hover {
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  background: transparent;
-  color: var(--accent);
 }
 
 /* The small dot that says "this pair already has a setup". */

@@ -670,16 +670,6 @@ body:has(.login-page) {
   }
 }
 
-.icon-tile-accent {
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
-  color: var(--accent);
-}
-
-.dark .icon-tile-accent {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
 .menu-item-active {
   background: var(--surface);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, var(--border-strong));
@@ -1356,14 +1346,6 @@ html.mobile-sheet-open body {
   gap: 0.3rem;
 }
 
-.tradability-dot {
-  flex-shrink: 0;
-  width: 0.375rem;
-  height: 0.375rem;
-  border-radius: 999px;
-  background: currentColor;
-}
-
 .pair-strength-chip[data-tone="tradability-high"] {
   color: var(--success);
   background: var(--success-soft);
@@ -1397,9 +1379,6 @@ html.mobile-sheet-open body {
 /* Long label by default; the short one only where a row is too narrow for it
    (Markets on a phone). The short copy is aria-hidden, the long one stays
    readable to screen readers. */
-.tradability-short {
-  display: none;
-}
 
 .tradability .pair-strength-chip {
   max-width: 100%;
@@ -1410,20 +1389,6 @@ html.mobile-sheet-open body {
 .tradability .pair-strength-label {
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-@media (max-width: 767px) {
-  .nl-mk-pair-copy .tradability-long {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-  }
-
-  .nl-mk-pair-copy .tradability-short {
-    display: inline;
-  }
 }
 
 .signals-pair-sheet .signals-icon-btn {
@@ -1560,14 +1525,6 @@ html.mobile-sheet-open body {
   .dashboard-view .account-chart-canvas {
     margin-inline: -1rem;
     width: calc(100% + 2rem);
-  }
-
-  .dashboard-view .account-overview-hero {
-    background: transparent;
-  }
-
-  .dashboard-view .account-overview-hero::after {
-    content: none;
   }
 }
 
@@ -1869,13 +1826,6 @@ html.mobile-sheet-open body {
   line-height: 1.15;
 }
 
-.text-section-title {
-  font-size: 0.875rem;
-  font-weight: 600;
-  letter-spacing: -0.03em;
-  line-height: 1.3;
-}
-
 .text-overline {
   font-size: 0.75rem;
   font-weight: 500;
@@ -1955,26 +1905,6 @@ html.mobile-sheet-open body {
    balance above them stays the only heavy element in the card. */
 
 /* Compact, low-volume empty state. An absent value is not an error. */
-.empty-state {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  color: var(--muted);
-  font-size: 0.8125rem;
-}
-
-.empty-state-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--border-strong);
-  flex-shrink: 0;
-}
-
-.dark .connection-pill {
-  background: color-mix(in srgb, var(--background) 40%, var(--surface-raised));
-  border: 1px solid var(--border);
-}
 
 /*
  * Pin to the viewport bottom explicitly. Utilities alone were not enough when a
@@ -3033,28 +2963,6 @@ body.is-dragging-position-tool .setup-chart-position-band {
   background: var(--surface);
   border-color: var(--border-strong);
   box-shadow: none;
-}
-
-.dashboard-view .dashboard-row {
-  border-bottom: 1px solid var(--border);
-  transition: background-color 140ms ease;
-}
-
-.dashboard-view .dashboard-row:last-child {
-  border-bottom: none;
-}
-
-.dashboard-view .dashboard-row:hover {
-  background: var(--minimal-hover);
-}
-
-.dashboard-view .dashboard-inset {
-  background: var(--minimal-inset);
-  border-radius: 10px;
-}
-
-.dark .dashboard-view .dashboard-inset {
-  border: 1px solid var(--border);
 }
 
 .dashboard-view .link-quiet {
@@ -6685,128 +6593,21 @@ html:has(.pending-entry-backdrop) .mobile-dock {
    the page surface like the approved home reference. Fixed so the rail and
    main column read as one continuous canvas. */
 
-.home-hero-nav {
-  font-size: 2.55rem;
-  font-weight: 650;
-  letter-spacing: -0.055em;
-  line-height: 0.95;
-}
-
-.home-hero-today {
-  margin-top: 0.7rem;
-  font-size: 0.95rem;
-  font-weight: 500;
-}
-
-.home-hero-today span {
-  margin-left: 0.35rem;
-  font-weight: 450;
-}
-
-.home-hero-label {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.home-hero-nav {
-  margin-top: 0.35rem;
-}
-
-.home-hero-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
 /* Mobile-only: on desktop the brand, market status and bell already live in the
    sidebar + top bar, so the in-hero row is hidden (overrides the base display
    above, which was winning over the utility `lg:hidden`). */
-@media (min-width: 1024px) {
-  .home-hero-topbar {
-    display: none;
-  }
-}
 
 /* Balance copy on the left, the period switcher pinned to the right, aligned to
    the "Today" line. Wraps below on narrow screens. */
-.home-hero-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 0.75rem 1rem;
-}
 
 /* The switcher as a filled pill matching the top-bar search input. */
 
-.home-hero-topbar-end {
-  display: flex;
-  margin-left: auto;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.home-market-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--success) 26%, var(--border));
-  background: color-mix(in srgb, var(--success) 9%, var(--surface));
-  padding: 0.2rem 0.55rem;
-  color: var(--success);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.home-market-pill.is-closed {
-  border-color: color-mix(in srgb, var(--muted) 26%, var(--border));
-  background: color-mix(in srgb, var(--muted) 8%, var(--surface));
-  color: var(--muted-strong);
-}
-
-.home-market-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: currentColor;
-}
-
-.dark .home-market-pill {
-  background: color-mix(in srgb, var(--success) 14%, var(--surface));
-}
-
-.dark .home-market-pill.is-closed {
-  background: color-mix(in srgb, var(--muted) 12%, var(--surface));
-}
-
-.home-section-head h2,
 .home-rail-heading {
   color: var(--muted);
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-}
-
-.home-section-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.home-section-link {
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 500;
 }
 
 /* Size / R / P/L sit at the right edge under their headers. */
@@ -6835,264 +6636,10 @@ html:has(.pending-entry-backdrop) .mobile-dock {
   color: var(--danger);
 }
 
-.home-empty {
-  margin: 0.85rem 0 0;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 450;
-}
-
-.home-idle-section {
-  padding-top: 1.15rem;
-  border-top: 1px solid var(--border);
-}
-
-.home-live {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: var(--accent);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.home-live-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--accent);
-}
-
-.home-idle-lead {
-  margin-top: 0.85rem;
-  color: var(--foreground);
-  font-size: 15px;
-  font-weight: 550;
-  letter-spacing: -0.02em;
-}
-
-.home-idle-list {
-  display: grid;
-  gap: 4px;
-  margin-top: 0.85rem;
-}
-
-.home-idle-head,
-.home-idle-row {
-  display: grid;
-  align-items: center;
-  gap: 10px;
-  min-height: 36px;
-  padding: 8px 10px;
-  border-radius: 10px;
-}
-
-.home-idle-head:not(.home-activity-head) {
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.3fr) minmax(0, 0.9fr);
-}
-
-.home-upcoming-row {
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.75rem;
-  min-height: 3.75rem;
-  padding: 0.7rem 0.8rem;
-  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
-  border-radius: 0.75rem;
-  background: color-mix(in srgb, var(--surface-raised) 52%, transparent);
-  text-decoration: none;
-  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
-}
-
-.home-upcoming-row:hover {
-  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
-  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
-  transform: translateY(-1px);
-}
-
-.home-upcoming-main {
-  display: grid;
-  min-width: 0;
-  gap: 0.15rem;
-}
-
-.home-upcoming-row .home-idle-pair {
-  font-size: 0.875rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
-.home-upcoming-strategy {
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.home-upcoming-window {
-  display: inline-flex;
-  align-items: center;
-  align-self: center;
-  min-height: 1.65rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--foreground) 7%, transparent);
-  color: var(--muted-strong);
-  font-size: 0.65rem;
-  font-weight: 750;
-  letter-spacing: 0.015em;
-  white-space: nowrap;
-}
-
-.home-upcoming-row.is-ready .home-upcoming-window {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--accent);
-}
-
-.home-activity-row,
-.home-activity-head {
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.15fr) 6.4rem 4.2rem 4.4rem;
-}
-
-.home-idle-head {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.home-idle-row {
-  color: var(--foreground);
-  font-size: 13px;
-  font-weight: 450;
-}
-
-@media (hover: hover) {
-  .home-idle-row:hover {
-    background: color-mix(in srgb, var(--accent) 8%, transparent);
-  }
-}
-
-.home-idle-pair {
-  font-weight: 500;
-}
-
-.home-activity-row.is-tp .home-activity-result {
-  color: var(--success);
-}
-
-.home-activity-row.is-sl .home-activity-result {
-  color: var(--danger);
-}
-
-.home-activity-row.is-exit .home-activity-result,
-.home-activity-row.is-other .home-activity-result {
-  color: var(--muted);
-}
-
-.home-activity-row > :last-child,
-.home-upcoming-row > :last-child,
-.home-activity-row .metric-number {
-  text-align: right;
-}
-
-.home-activity-head > :nth-child(3),
-.home-activity-head > :nth-child(4),
-.home-activity-head > :nth-child(5) {
-  text-align: right;
-}
-
-@media (max-width: 639px) {
-  .home-idle-head,
-  .home-idle-row {
-    padding-inline: 0;
-  }
-
-  .home-idle-head:not(.home-activity-head) { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) auto; }
-
-  .home-upcoming-row {
-    min-height: 3.5rem;
-    padding: 0.65rem 0.7rem;
-  }
-
-  .home-activity-row,
-  .home-activity-head {
-    grid-template-columns: minmax(4.4rem, 0.85fr) minmax(0, 1fr) 4.8rem 3rem 2.8rem;
-    font-size: 12px;
-  }
-}
-
 .home-rail {
   display: flex;
   flex-direction: column;
   gap: 22px;
-}
-
-.home-mini-chart {
-  min-height: 160px;
-}
-
-.home-mini-chart-meta {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.home-mini-chart-pair {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-}
-
-.home-mini-chart-quote {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.home-mini-chart-canvas-wrap {
-  position: relative;
-  height: 124px;
-  margin-top: 8px;
-}
-
-.home-mini-chart-canvas {
-  height: 100%;
-}
-
-.home-mini-chart-level-tags {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.home-mini-chart-level {
-  position: absolute;
-  left: 5px;
-  z-index: 1;
-  transform: translateY(-50%);
-  font-size: 10px;
-  font-weight: 750;
-  letter-spacing: .025em;
-  line-height: 1;
-  text-shadow: 0 1px 2px color-mix(in srgb, var(--background) 86%, transparent);
-}
-
-.home-mini-chart-level.is-entry,
-.home-mini-chart-level.is-target {
-  color: var(--success);
-}
-
-.home-mini-chart-level.is-stop {
-  color: var(--danger);
 }
 
 .home-rail-heading {
@@ -7179,23 +6726,6 @@ html:has(.pending-entry-backdrop) .mobile-dock {
 
 @media (min-width: 1024px) {
 
-  .home-hero-nav {
-    font-size: 3.15rem;
-  }
-
-  .dashboard-view .account-overview-hero {
-    background: transparent;
-    border: 0;
-    box-shadow: none;
-    padding: 0;
-  }
-
-  .dark .dashboard-view .account-overview-hero {
-    background: transparent;
-    border: 0;
-    box-shadow: none;
-  }
-
   .home-rail {
     position: fixed;
     top: var(--app-topbar-height, 0px);
@@ -7222,9 +6752,6 @@ html:has(.pending-entry-backdrop) .mobile-dock {
 }
 
 /* Mobile / shared account home — reference-style hero + amount chart */
-.account-overview-hero {
-  padding-bottom: 0.25rem;
-}
 
 .account-chart-canvas {
   /* What the dot rings are punched out of. The hero is transparent on mobile,
@@ -7239,34 +6766,6 @@ html:has(.pending-entry-backdrop) .mobile-dock {
   -webkit-tap-highlight-color: transparent;
   /* Horizontal drags scrub the chart, vertical ones still scroll the page. */
   touch-action: pan-y;
-}
-
-.home-chart-stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 16px;
-  margin-top: 14px;
-}
-
-.home-chart-stats dt {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.home-chart-stats dd {
-  margin-top: 4px;
-  font-size: 15px;
-  font-weight: 550;
-  letter-spacing: -0.03em;
-}
-
-@media (max-width: 639px) {
-  .home-chart-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 .account-chart-tooltip {
@@ -7453,50 +6952,6 @@ html:has(.pending-entry-backdrop) .mobile-dock {
  * the pair and its result. Mobile keeps the timestamp below the pair.
  */
 
-@media (min-width: 1024px) {
-  /*
-   * The card takes its tint from the day, not from the brand. It was a fixed
-   * mint wash inside a green border with a green glow, which fought the red
-   * line on any losing day — five green cues around a red chart.
-   */
-  .dashboard-view .account-overview-hero {
-    /* The same tokens the chart line uses, so the card and the line inside it
-       are literally the same hue rather than two shades of "green". */
-    --hero-tone: var(--chart-up);
-    position: relative;
-    overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--hero-tone) 18%, var(--border));
-    border-radius: 1.5rem;
-    padding: 1.75rem 2rem 1.5rem;
-    background:
-      radial-gradient(circle at 88% 18%, color-mix(in srgb, var(--hero-tone) 10%, transparent), transparent 30%),
-      linear-gradient(135deg, color-mix(in srgb, var(--surface) 96%, var(--hero-tone)), var(--surface));
-    box-shadow: 0 18px 50px color-mix(in srgb, var(--hero-tone) 6%, transparent);
-    transition: border-color 220ms ease, background 220ms ease;
-  }
-
-  .dashboard-view .account-overview-hero[data-tone="negative"] {
-    --hero-tone: var(--chart-down);
-  }
-
-  .dashboard-view .account-overview-hero .account-chart-canvas {
-    --hero-surface: var(--surface);
-  }
-
-  .dark .dashboard-view .account-overview-hero {
-    border-color: color-mix(in srgb, var(--hero-tone) 22%, var(--border-strong));
-    background:
-      radial-gradient(circle at 88% 18%, color-mix(in srgb, var(--hero-tone) 10%, transparent), transparent 30%),
-      linear-gradient(135deg, color-mix(in srgb, var(--surface) 94%, var(--hero-tone)), var(--surface));
-    box-shadow: 0 18px 50px color-mix(in srgb, var(--background) 45%, transparent);
-  }
-
-  /* Shortcuts keep their own height. Stretching them to the trade list's
-     height inflated three one-line links into tall, mostly empty cards. */
-
-  /* Recent trades: no outer chrome — cards carry their own borders */
-}
-
 /*
  * Add a third column instead of stretching two: at 1280px a two-up row is
  * 562px wide and leaves a 425px void between the pair and its price. The
@@ -7555,861 +7010,16 @@ html:has(.pending-entry-backdrop) .mobile-dock {
 
 /* ── Signals list page ─────────────────────────────────────────────────── */.is-positive{color:var(--accent)!important}.is-negative{color:var(--danger)!important}
 
-.signals-list-shell {
-  display: flex;
-  flex-direction: column;
-  gap: 1.35rem;
-}
-
-.signals-list-main {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 1.35rem;
-  /* The same overhead brand light used on Home: it belongs to the workspace,
-     while the overview rail stays a stable navigation-like surface. */
-  background: radial-gradient(
-    74% 72% at 38% -24%,
-    color-mix(in srgb, var(--accent) 16%, var(--background)) 0%,
-    color-mix(in srgb, var(--accent) 7%, var(--background)) 42%,
-    var(--background) 80%
-  );
-}
-
-.dark .signals-list-main {
-  background: radial-gradient(
-    74% 72% at 38% -24%,
-    color-mix(in srgb, var(--accent) 14%, var(--background)) 0%,
-    color-mix(in srgb, var(--accent) 6%, var(--background)) 42%,
-    var(--background) 80%
-  );
-}
-
-.signals-list-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 0.9rem;
-}
-
-.signals-list-title {
-  display: flex;
-  align-items: baseline;
-  gap: 0.6rem;
-}
-
-.signals-list-title h1 {
-  font-size: 1.7rem;
-  font-weight: 650;
-  letter-spacing: -0.035em;
-}
-
-.signals-list-count {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.signals-list-count-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--success);
-}
-
-.signals-list-count-sep {
-  display: none;
-}
-
-.signals-filter-icon {
-  display: grid;
-  place-items: center;
-  width: 2.1rem;
-  height: 2.1rem;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--muted-strong);
-}
-
-.signals-list-search {
-  display: none;
-}
-
-.signals-list-tabs {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.signals-list-tab {
-  min-height: 2.3rem;
-  padding: 0 1.1rem;
-  border-radius: 9px;
-  background: var(--surface-muted);
-  color: var(--muted-strong);
-  font-size: 13px;
-  font-weight: 600;
-  transition: background-color 140ms ease, color 140ms ease;
-}
-
-.signals-list-tab.is-active {
-  background: var(--accent);
-  color: #05271c;
-}
-
-.dark .signals-list-tab.is-active {
-  color: #04140d;
-}
-
-.signals-list-filters {
-  display: none;
-}
-
-.signals-filter-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  min-height: 1.9rem;
-  padding: 0 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--surface);
-  color: var(--muted-strong);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.signals-section-label {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.signals-section-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.signals-section-link {
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.signal-empty {
-  margin: 0.75rem 0;
-  color: var(--muted);
-  font-size: 13px;
-}
-
 /* Signal cards */
-.signal-card-grid {
-  display: grid;
-  gap: 0.85rem;
-  margin-top: 0.7rem;
-}
-
-.signal-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  padding: 1rem;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: var(--surface);
-}
-
-.dark .signal-card {
-  background: color-mix(in srgb, var(--surface) 92%, var(--background));
-  border-color: var(--border-strong);
-}
-
-.signal-card-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.signal-card-ident {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.signal-card-pair {
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.signal-card-strategy {
-  width: 100%;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 450;
-}
-
-.signal-card-meta {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.signal-card-time {
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.signal-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  border-radius: 999px;
-  padding: 0.2rem 0.5rem;
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.signal-status.is-active {
-  background: color-mix(in srgb, var(--success) 14%, transparent);
-  color: var(--success);
-}
-
-.signal-status.is-watching {
-  background: color-mix(in srgb, var(--pending) 16%, transparent);
-  color: var(--pending);
-}
-
-.signal-status.is-triggered {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--accent);
-}
-
-.signal-status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: currentColor;
-}
-
-.signal-status-icon {
-  width: 12px;
-  height: 12px;
-}
-
-.signal-card-stats {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.6rem;
-}
-
-.signal-card-stats > div {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.signal-card-stats dt {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.signal-card-stats dd {
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-
-.signal-card-stats > .signal-card-current {
-  display: none;
-}
 
 /* Progress track: stop (left) → target (right), knob at the live price. */
-.signal-progress {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.signal-progress-track {
-  position: relative;
-  height: 6px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--foreground) 9%, transparent);
-}
-
-.signal-progress-dot {
-  position: absolute;
-  top: 50%;
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  transform: translateY(-50%);
-}
-
-.signal-progress-dot.is-stop {
-  left: 0;
-  background: var(--danger);
-}
-
-.signal-progress-dot.is-target {
-  right: 0;
-  background: var(--success);
-}
-
-.signal-progress-knob {
-  position: absolute;
-  top: 50%;
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
-  background: var(--foreground);
-  border: 2px solid var(--surface);
-  box-shadow: 0 0 0 1px var(--border);
-  transform: translate(-50%, -50%);
-}
-
-.signal-progress-labels {
-  position: relative;
-  height: 0.95rem;
-  color: var(--muted);
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-}
-
-.signal-progress-labels > span:first-child {
-  position: absolute;
-  left: 0;
-}
-
-.signal-progress-labels > span:last-child {
-  position: absolute;
-  right: 0;
-}
-
-.signal-progress-now {
-  position: absolute;
-  transform: translateX(-50%);
-  color: var(--foreground);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.signal-card-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--border);
-}
-
-.signal-card-note {
-  min-width: 0;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.signal-card-openr {
-  color: var(--muted-strong);
-}
-
-.signal-card-chart {
-  flex-shrink: 0;
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 600;
-}
 
 /* Recent / history list */
-.signal-recent-list {
-  display: flex;
-  flex-direction: column;
-  margin-top: 0.5rem;
-}
-
-.signal-recent-head,
-.signal-recent-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) 0.6fr minmax(0, 1.5fr) 0.9fr 0.7fr 0.9fr;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.6rem 0.15rem;
-}
-
-.signal-recent-head {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  border-bottom: 1px solid var(--border);
-}
-
-.signal-recent-row {
-  border-bottom: 1px solid var(--border);
-  font-size: 13px;
-}
 
 /* Direction stays color-coded in the compact Signals history table, but it
    should read as table text rather than a second pill-shaped control. */
-.signal-recent-row > .home-side.is-long,
-.signal-recent-row > .home-side.is-short {
-  background: transparent;
-}
-
-.signal-recent-row:hover {
-  background: color-mix(in srgb, var(--accent) 6%, transparent);
-}
-
-.signal-recent-pair {
-  font-weight: 600;
-}
-
-.signal-recent-strategy {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.signal-recent-status {
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.signal-recent-row.is-tp .signal-recent-status,
-.signal-recent-row.is-tp .signal-recent-result {
-  color: var(--success);
-}
-
-.signal-recent-row.is-sl .signal-recent-status,
-.signal-recent-row.is-sl .signal-recent-result {
-  color: var(--danger);
-}
-
-.signal-recent-row.is-expired .signal-recent-status,
-.signal-recent-row.is-expired .signal-recent-result,
-.signal-recent-row.is-other .signal-recent-status {
-  color: var(--muted);
-}
-
-.signal-recent-result {
-  text-align: right;
-}
-
-.signal-recent-closed {
-  text-align: right;
-  color: var(--muted);
-  font-size: 12px;
-}
 
 /* Rail */
-.signals-list-rail {
-  display: none;
-}
-
-.signals-rail-label {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.signals-rail-overview {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-}
-
-.signals-rail-overview dt {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.signals-rail-overview dd {
-  margin-top: 3px;
-  font-size: 1.5rem;
-  font-weight: 600;
-  letter-spacing: -0.03em;
-}
-
-.signals-rail-overview dd.is-positive {
-  color: var(--success);
-}
-
-.signals-rail-overview dd.is-watching {
-  color: var(--pending);
-}
-
-.signals-rail-today {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-top: 0.7rem;
-}
-
-.signals-rail-r {
-  font-size: 1.6rem;
-  font-weight: 600;
-  letter-spacing: -0.04em;
-}
-
-.signals-rail-r.is-positive {
-  color: var(--success);
-}
-
-.signals-rail-r.is-negative {
-  color: var(--danger);
-}
-
-.signals-rail-closed {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.signals-rail-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-top: 0.7rem;
-}
-
-.signals-rail-meta > div:nth-child(2) {
-  text-align: center;
-}
-
-.signals-rail-meta > div:nth-child(3) {
-  text-align: right;
-}
-
-.signals-rail-meta dt {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.signals-rail-meta dd {
-  margin-top: 2px;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.signals-rail-bar {
-  display: flex;
-  height: 4px;
-  margin-top: 0.6rem;
-  overflow: hidden;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--foreground) 9%, transparent);
-}
-
-.signals-rail-bar > span {
-  height: 100%;
-}
-
-.signals-rail-bar > .is-win {
-  background: var(--success);
-}
-
-.signals-rail-bar > .is-loss {
-  background: var(--danger);
-}
-
-.signals-rail-markets {
-  display: flex;
-  flex-direction: column;
-  margin-top: 0.75rem;
-}
-
-.signals-rail-market {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.55rem 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 13px;
-}
-
-.signals-rail-market:last-child {
-  border-bottom: 0;
-}
-
-.signals-rail-market > span:first-child {
-  font-weight: 600;
-}
-
-.signals-rail-market-status {
-  text-align: right;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.signals-rail-market-status.is-active {
-  color: var(--success);
-}
-
-.signals-rail-market-status.is-watching {
-  color: var(--pending);
-}
-
-.signals-rail-market-status.is-triggered {
-  color: var(--accent);
-}
-
-@media (max-width: 1023px) {
-  .signals-list-tab {
-    flex: 1;
-  }
-
-  .signal-recent-head {
-    display: none;
-  }
-
-  .signal-recent-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "pair result"
-      "strategy closed";
-    row-gap: 2px;
-    padding-inline: 0;
-  }
-
-  .signal-recent-pair {
-    grid-area: pair;
-  }
-
-  .signal-recent-row > .home-side {
-    display: none;
-  }
-
-  .signal-recent-strategy {
-    grid-area: strategy;
-  }
-
-  .signal-recent-status {
-    display: none;
-  }
-
-  .signal-recent-result {
-    grid-area: result;
-  }
-
-  .signal-recent-closed {
-    grid-area: closed;
-  }
-}
-
-@media (min-width: 1024px) {
-  .signals-list-shell {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(270px, 310px);
-    min-height: 100dvh;
-    gap: 0;
-    align-items: stretch;
-  }
-
-  .signals-list-main {
-    gap: 1.15rem;
-    padding: 1.15rem clamp(1.1rem, 2.2vw, 2rem) 2rem;
-  }
-
-  .signals-list-header {
-    min-height: 2.35rem;
-    align-items: center;
-  }
-
-  .signals-list-tabs {
-    min-height: 2.6rem;
-    padding: 0.35rem 0;
-    border-top: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .signals-list-title h1 {
-    font-size: 1.5rem;
-  }
-
-  .signals-list-count-sep {
-    display: inline;
-  }
-
-  .signals-filter-icon {
-    display: none;
-  }
-
-  .signals-list-search {
-    display: block;
-  }
-
-  .signals-list-filters {
-    display: flex;
-    margin-left: auto;
-    gap: 0.4rem;
-  }
-
-  .signals-list-tab {
-    min-height: 1.8rem;
-    padding-inline: 0.9rem;
-    border-radius: 6px;
-    font-size: 11px;
-  }
-
-  .signals-filter-chip {
-    min-height: 1.65rem;
-    padding-inline: 0.5rem;
-    border-color: color-mix(in srgb, var(--border) 72%, transparent);
-    background: color-mix(in srgb, var(--surface) 80%, transparent);
-    font-size: 9px;
-  }
-
-  .signal-card {
-    position: relative;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(210px, 0.9fr) minmax(145px, 0.55fr);
-    gap: 0.55rem 1rem;
-    padding: 0.75rem 0.85rem;
-    border-radius: 11px;
-  }
-
-  .signal-card-head {
-    grid-column: 1 / -1;
-    gap: 0.5rem;
-  }
-
-  .signal-card-ident {
-    flex-wrap: nowrap;
-    gap: 0.45rem;
-  }
-
-  .signal-card-pair {
-    font-size: 13px;
-  }
-
-  .signal-card-strategy {
-    width: auto;
-    overflow: hidden;
-    font-size: 10px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .signal-card-meta {
-    gap: 0.45rem;
-  }
-
-  .signal-card-time,
-  .signal-status {
-    font-size: 9px;
-  }
-
-  .signal-card-stats {
-    grid-column: 1;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 0.45rem;
-  }
-
-  .signal-card-stats dt {
-    font-size: 8px;
-  }
-
-  .signal-card-stats dd {
-    font-size: 11px;
-  }
-
-  .signal-card-stats > .signal-card-current {
-    display: flex;
-  }
-
-  .signal-progress {
-    grid-column: 2;
-    align-self: center;
-    gap: 0.25rem;
-  }
-
-  .signal-progress-labels {
-    height: 0.7rem;
-    font-size: 8px;
-  }
-
-  .signal-card-foot {
-    grid-column: 3;
-    align-self: center;
-    display: grid;
-    justify-items: end;
-    gap: 0.28rem;
-    padding: 0;
-    border: 0;
-  }
-
-  .signal-card-note {
-    overflow: hidden;
-    max-width: 100%;
-    font-size: 9px;
-    text-align: right;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .signal-card-chart {
-    font-size: 10px;
-  }
-
-  .signals-list-rail {
-    position: sticky;
-    top: 0;
-    display: flex;
-    flex-direction: column;
-    align-self: start;
-    min-height: 100dvh;
-    gap: 1.25rem;
-    padding: 5.1rem 1.25rem 1.5rem;
-    border-left: 1px solid var(--border);
-    background: var(--surface);
-  }
-
-  .dark .signals-list-rail {
-    border-left-color: rgba(255, 255, 255, 0.05);
-    background: var(--background);
-  }
-
-  .signals-rail-section + .signals-rail-section {
-    padding-top: 1.2rem;
-    border-top: 1px solid var(--border);
-  }
-}
 
 /* ==================================================================== TRADES
    GX Trades page (/journal) — matches the approved reference: sidebar (shared)
@@ -8479,218 +7089,6 @@ html:has(.pending-entry-backdrop) .mobile-dock {
 /* The realized / unrealized strip reads as a footer inside the card. */
 
 /* --- Unified content panels -------------------------------- */
-
-.home-pending-trades {
-  overflow: hidden;
-}
-
-.home-pending-count {
-  padding: 0.3rem 0.55rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--pending) 11%, transparent);
-  color: var(--pending);
-  font-size: 0.68rem;
-  font-weight: 750;
-  letter-spacing: 0.02em;
-}
-
-.home-pending-list {
-  display: grid;
-  gap: 0.65rem;
-  margin-top: 0.9rem;
-}
-
-.home-pending-row {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.85rem;
-  overflow: hidden;
-  border: 1px solid var(--home-panel-border);
-  border-radius: 0.9rem;
-  background: var(--home-inset);
-}
-
-.home-pending-link {
-  min-width: 0;
-  padding: 0.85rem 0 0.85rem 0.9rem;
-}
-
-.home-pending-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.65rem;
-  min-width: 0;
-}
-
-.home-pending-ident {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  min-width: 0;
-}
-
-.home-pending-header strong {
-  font-size: 0.85rem;
-  letter-spacing: -0.015em;
-}
-
-.home-pending-status {
-  flex-shrink: 0;
-  padding: 0.18rem 0.45rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--pending) 14%, transparent);
-  color: var(--muted-strong);
-  font-size: 0.58rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.home-pending-dt-wide {
-  display: none;
-}
-
-.home-pending-dt-narrow {
-  display: inline;
-}
-
-.home-pending-note {
-  margin-top: 0.4rem;
-  color: var(--muted-strong);
-  font-size: 0.68rem;
-  font-weight: 500;
-  line-height: 1.4;
-}
-
-.home-pending-note.is-muted {
-  color: var(--muted);
-}
-
-.home-pending-levels {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.4rem 0.35rem;
-  margin-top: 0.55rem;
-}
-
-.home-pending-levels dt {
-  color: var(--muted);
-  font-size: 0.58rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.home-pending-levels dd {
-  margin-top: 0.15rem;
-  overflow: hidden;
-  color: var(--muted-strong);
-  font-size: 0.72rem;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.home-pending-levels dd.is-unset {
-  color: var(--muted);
-  font-family: inherit;
-  font-size: 0.68rem;
-  font-weight: 500;
-}
-
-.home-pending-cancel {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.3rem;
-  min-width: 5.5rem;
-  min-height: 2.75rem;
-  margin-right: 0.8rem;
-  padding: 0 0.75rem;
-  border: 1px solid color-mix(in srgb, var(--danger) 24%, var(--border));
-  border-radius: 0.7rem;
-  background: color-mix(in srgb, var(--danger) 8%, transparent);
-  color: var(--danger);
-  font-size: 0.72rem;
-  font-weight: 750;
-}
-
-.home-pending-cancel:disabled {
-  opacity: 0.55;
-}
-
-.home-pending-error {
-  margin-top: 0.65rem;
-  color: var(--danger);
-  font-size: 0.72rem;
-  font-weight: 600;
-}
-
-.home-pending-empty {
-  margin-top: 0.4rem;
-  color: var(--muted);
-  font-size: 0.78rem;
-  line-height: 1.5;
-}
-
-.home-pending-empty strong {
-  color: var(--foreground);
-  font-weight: 700;
-}
-
-@media (min-width: 640px) {
-  .home-pending-dt-wide {
-    display: inline;
-  }
-
-  .home-pending-dt-narrow {
-    display: none;
-  }
-}
-
-@media (max-width: 639px) {
-  .home-pending-row {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0;
-  }
-
-  .home-pending-header {
-    flex-wrap: wrap;
-    row-gap: 0.35rem;
-  }
-
-  .home-pending-ident {
-    flex-wrap: wrap;
-    row-gap: 0.25rem;
-  }
-
-  .home-pending-status {
-    margin-left: auto;
-  }
-
-  .home-pending-link {
-    padding: 0.85rem 0.9rem 0.65rem;
-  }
-
-  .home-pending-levels dd {
-    font-size: 0.76rem;
-  }
-
-  .home-pending-note {
-    font-size: 0.65rem;
-    line-height: 1.35;
-  }
-
-  .home-pending-cancel {
-    width: calc(100% - 1.8rem);
-    min-height: 2.75rem;
-    margin: 0 0.9rem 0.85rem;
-    font-size: 0.75rem;
-  }
-}
 
 /* The status / recent-activity blocks used a top border as their only
    separator; the panel border now carries that job on all four sides. */
@@ -8927,94 +7325,6 @@ html:has(.pending-entry-backdrop) .mobile-dock {
 
 }
 
-@media (max-width: 1023px) {
-  .home-hero-topbar-end {
-    margin-right: -.75rem;
-    gap: .45rem;
-  }
-
-  .home-hero-bell.is-lifted {
-    position: fixed;
-    top: max(1rem, env(safe-area-inset-top, 0px));
-    right: 1rem;
-    z-index: 30;
-    background: color-mix(in srgb, var(--surface) 94%, transparent);
-    backdrop-filter: blur(18px) saturate(160%);
-    -webkit-backdrop-filter: blur(18px) saturate(160%);
-    border-color: color-mix(in srgb, var(--border) 85%, transparent);
-    box-shadow: 0 1px 0 color-mix(in srgb, var(--foreground) 4%, transparent), 0 6px 18px color-mix(in srgb, var(--foreground) 8%, transparent);
-  }
-
-  .dark .home-hero-bell.is-lifted {
-    background: color-mix(in srgb, var(--surface) 88%, #000 12%);
-    border-color: color-mix(in srgb, var(--border-strong) 75%, transparent);
-    box-shadow: 0 1px 0 color-mix(in srgb, var(--foreground) 5%, transparent), 0 8px 20px color-mix(in srgb, var(--background) 75%, transparent);
-  }
-}
-
-@media (max-width: 639px) {
-  .home-idle-list:has(.home-activity-row) {
-    gap: 0;
-    margin-top: .55rem;
-  }
-
-  .home-activity-head {
-    display: none;
-  }
-
-  .home-activity-row {
-    /* Fixed money/time tracks: each row is its own grid, so `auto` columns sized
-       to their own text and the P/L, R and time edges drifted row to row. */
-    grid-template-columns: minmax(0, 1fr) 5.6rem 3.1rem;
-    grid-template-areas:
-      "pair money time"
-      "result result risk";
-    column-gap: .65rem;
-    row-gap: .22rem;
-    min-height: 3.55rem;
-    padding: .55rem .55rem;
-    border-radius: 0;
-    border-bottom: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
-    font-size: .75rem;
-  }
-
-  .home-activity-row:last-child {
-    border-bottom: 0;
-  }
-
-  .home-activity-pair {
-    grid-area: pair;
-    font-size: .8rem;
-    font-weight: 700;
-    letter-spacing: -.01em;
-  }
-
-  .home-activity-result {
-    grid-area: result;
-    overflow: hidden;
-    color: var(--muted);
-    font-size: .65rem;
-    font-weight: 700;
-    letter-spacing: .035em;
-    text-overflow: ellipsis;
-    text-transform: uppercase;
-    white-space: nowrap;
-  }
-
-  .home-activity-money { grid-area: money; font-size: .78rem; white-space: nowrap; }
-  .home-activity-r { grid-area: risk; align-self: end; font-size: .68rem; white-space: nowrap; }
-  .home-activity-time { grid-area: time; min-width: 2.9rem; color: var(--muted); font-size: .67rem; font-weight: 650; text-align: right; white-space: nowrap; }
-
-  .home-idle-row:hover,
-  .home-idle-row:active,
-  .home-activity-row:hover,
-  .home-activity-row:active {
-    background: transparent;
-    box-shadow: none;
-    border-radius: 0;
-  }
-}
-
 /* The Analyze action produces a reviewable proposal only. */
 /* Dark scrim only; the blur is applied to the page content (see the :has()
    rule below), since Android GPUs frequently no-op backdrop-filter here. */
@@ -9058,33 +7368,12 @@ html:has(.manual-proposal-backdrop) .mobile-dock {
 .trade-health.is-muted { color: var(--muted-strong); font-size: .72rem; }
 .trade-health.is-muted p { margin: .3rem 0 0; }
 .trade-health header { display: flex; align-items: flex-start; justify-content: space-between; gap: .6rem; }
-.trade-health-title { display: block; color: var(--muted); font-size: .56rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
 .trade-health header strong { display: block; margin-top: .15rem; font-size: .82rem; font-weight: 800; }
-.trade-health-status { align-self: start; border-radius: .5rem; padding: .3rem .5rem; font-size: .68rem; font-weight: 850; letter-spacing: .04em; }
-.trade-health-status.is-up { background: color-mix(in srgb, var(--accent) 18%, var(--surface)); color: var(--accent); }
-.trade-health-status.is-warn { background: color-mix(in srgb, var(--pending) 20%, var(--surface)); color: var(--pending); }
-.trade-health-status.is-down { background: var(--danger-soft); color: var(--danger); }
-.trade-health-r { margin-top: .5rem; font-size: 1.05rem; font-weight: 850; font-variant-numeric: tabular-nums; }
-.trade-health-r[data-sign="pos"] { color: var(--accent); }
-.trade-health-r[data-sign="neg"] { color: var(--danger); }
 .trade-health dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; margin: .55rem 0 0; }
 .trade-health > dl div { border: 1px solid var(--border); border-radius: .5rem; padding: .45rem .5rem; }
 .trade-health > dl dt { color: var(--muted); font-size: .56rem; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
 .trade-health > dl dd { margin: .2rem 0 0; font-size: .74rem; font-weight: 800; }
-.trade-health-reason { margin: .55rem 0 0; color: var(--muted-strong); font-size: .72rem; line-height: 1.4; }
-.trade-health-factors { list-style: none; margin: .5rem 0 0; padding: 0; display: grid; gap: .3rem; }
-.trade-health-factors li { font-size: .68rem; color: var(--muted-strong); }
-.trade-health-factors li span { display: inline-block; min-width: 2.4rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-.trade-health-factors li[data-sign="pos"] span { color: var(--accent); }
-.trade-health-factors li[data-sign="neg"] span { color: var(--danger); }
 /* Market / Location / Gate summary — always shown, no fabricated percentage. */
-.manual-proposal-debug { margin-top: .85rem; border: 1px solid var(--border); border-radius: .55rem; }
-.manual-proposal-debug summary { padding: .5rem .6rem; color: var(--muted); font-size: .62rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
-.manual-proposal-debug[open] summary { border-bottom: 1px solid var(--border); }
-.manual-proposal-debug dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem .6rem; margin: 0; padding: .6rem; }
-.manual-proposal-debug dl div { display: flex; justify-content: space-between; gap: .5rem; border: 0; padding: 0; }
-.manual-proposal-debug dt { color: var(--muted); font-size: .66rem; font-weight: 700; text-transform: none; letter-spacing: 0; }
-.manual-proposal-debug dd { margin: 0; font-size: .68rem; font-weight: 750; font-variant-numeric: tabular-nums; }
 .pending-cancel-confirmation {
   width: min(25rem, calc(100vw - 2rem));
   animation: none;
@@ -9317,8 +7606,6 @@ html:has(.custom-expiration-backdrop) .mobile-dock {
 @keyframes gx-chart-refresh { to { transform: rotate(360deg); } }
 
 /* Home: retain visual structure while the first activity request resolves. */
-.home-activity-skeleton { display: grid; gap: .45rem; margin-top: .75rem; }
-.home-activity-skeleton span { display: block; height: 3rem; border-radius: .7rem; background: linear-gradient(90deg, color-mix(in srgb, var(--foreground) 5%, transparent) 20%, color-mix(in srgb, var(--foreground) 10%, transparent) 45%, color-mix(in srgb, var(--foreground) 5%, transparent) 70%); background-size: 200% 100%; animation: gx-skeleton-shimmer 1.6s linear infinite; }
 /* A 200%-wide repeating gradient moves exactly one tile per cycle.
    Matching endpoints and constant speed avoid a visible reset on every loop. */
 @keyframes gx-skeleton-shimmer {
@@ -9349,8 +7636,6 @@ html:has(.custom-expiration-backdrop) .mobile-dock {
   .home-rail-total-meta dt { font-size: .56rem; }
   .home-rail-total-meta dd { margin-top: .2rem; font-size: .82rem; }
   .home-rail-bar { height: .24rem; margin-top: .9rem; border-radius: 999px; }
-  .home-activity-skeleton { gap: .35rem; }
-  .home-activity-skeleton span { height: 3.5rem; }
 }
 
 /* iPhone Safari: make the navigation feel like a floating hardware-shaped
@@ -10030,54 +8315,6 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
 }
 .home-rail-news-copy { min-width: 0; }
 .home-rail-news-event p { overflow: hidden; color: var(--muted-strong); font-size: 0.6875rem; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-.home-rail-news-hint {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.28rem;
-  margin-top: 0.1rem;
-  font-size: 0.5625rem;
-  font-weight: 550;
-  letter-spacing: 0.03em;
-  line-height: 1;
-  text-transform: lowercase;
-  white-space: nowrap;
-}
-.home-rail-news-hint.is-single {
-  gap: 0.22rem;
-  text-transform: none;
-}
-.home-rail-news-hint.is-neutral {
-  color: var(--muted);
-  text-transform: none;
-}
-.home-rail-news-hint-leg {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.18rem;
-}
-.home-rail-news-hint-leg.is-up {
-  color: var(--chart-up);
-}
-.home-rail-news-hint-leg.is-down {
-  color: var(--chart-down);
-}
-.home-rail-news-hint.is-single.is-up {
-  color: var(--chart-up);
-}
-.home-rail-news-hint.is-single.is-down {
-  color: var(--chart-down);
-}
-.home-rail-news-hint-sep {
-  color: var(--muted);
-  font-weight: 500;
-  opacity: 0.55;
-}
-.home-rail-news-trend {
-  width: 1.15rem;
-  height: 0.5rem;
-  flex-shrink: 0;
-}
 .home-rail-news-empty { margin-top: 0.55rem; color: var(--muted); font-size: 0.6875rem; line-height: 1.45; }
 .home-rail-news-empty.is-unavailable { color: var(--danger); }
 
@@ -10230,10 +8467,6 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
  * Values are the Expo palette.json / theme.ts ones so the web and the app read
  * as the same product. Last in the file on purpose.
  */
-.home-activity-count,
-.home-activity-outcome {
-  display: none;
-}
 
 /* Recent activity rows (RecentActivityCard): pair over a coloured outcome on
    the left, P/L over the date on the right, last five only. */
@@ -11086,128 +9319,9 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
     margin: 8px 0 12px;
   }
 
-  html:is(.dark, :not(.dark)) .tp-sheet .tp-eyebrow { display: none; }
-
-  html:is(.dark, :not(.dark)) .tp-sheet .tp-title {
-    margin-top: 0;
-    color: var(--gx-text);
-    font-size: 20px;
-    font-weight: 700;
-  }
-
   /* The trade's direction colours the title; a weak-setup note stays muted. */
-  html:is(.dark, :not(.dark)) .tp-sheet .tp-title.is-long { color: var(--gx-primary); }
-  html:is(.dark, :not(.dark)) .tp-sheet .tp-title.is-short { color: var(--gx-danger); }
-
-  html:is(.dark, :not(.dark)) .tp-close {
-    display: grid;
-    place-items: center;
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    border-radius: 999px;
-    background: var(--gx-surface-raised);
-    color: var(--gx-text-2);
-    font-size: 18px;
-    line-height: 1;
-  }
 
   /* The entry card holds the regime and the price, right under the mode toggle. */
-  html:is(.dark, :not(.dark)) .tp-entry {
-    position: relative;
-    margin: 12px 4px 0;
-    padding: 16px;
-    border-radius: 16px;
-    background: var(--gx-surface-raised);
-  }
-
-  html:is(.dark, :not(.dark)) .tp-label {
-    margin-top: 0;
-    color: var(--gx-muted);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.7px;
-  }
-
-  html:is(.dark, :not(.dark)) .tp-entry-price {
-    margin-top: 5px;
-    color: var(--gx-text);
-    font-size: 30px;
-    letter-spacing: -0.7px;
-  }
-
-  html:is(.dark, :not(.dark)) .tp-distance {
-    margin-top: 8px;
-    color: var(--gx-text-2);
-    font-size: 13px;
-    line-height: 19px;
-  }
-
-  html:is(.dark, :not(.dark)) .tp-levels {
-    gap: 10px;
-    margin: 10px 4px 0;
-  }
-
-  html:is(.dark, :not(.dark)) .tp-level {
-    padding: 13px;
-    border: 0;
-    border-radius: 14px;
-    background: var(--gx-surface-raised);
-  }
-
-  html:is(.dark, :not(.dark)) .tp-level-label {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0;
-    text-transform: none;
-  }
-
-  html:is(.dark, :not(.dark)) .tp-level.is-stop .tp-level-label { color: var(--gx-danger); }
-  html:is(.dark, :not(.dark)) .tp-level.is-target .tp-level-label { color: var(--gx-primary); }
-
-  html:is(.dark, :not(.dark)) .tp-level-price {
-    margin-top: 5px;
-    color: var(--gx-text);
-    font-size: 15px;
-    font-weight: 700;
-  }
-
-  html:is(.dark, :not(.dark)) .tp-level-copy {
-    margin-top: 4px;
-    color: var(--gx-muted);
-    font-size: 11px;
-  }
-
-  html:is(.dark, :not(.dark)) .tp-rr {
-    margin-top: 10px;
-    padding: 0 8px;
-    color: var(--gx-text-2);
-    font-size: 13px;
-  }
-
-  html:is(.dark, :not(.dark)) .tp-rr strong {
-    color: var(--gx-text);
-    font-size: 16px;
-    font-weight: 700;
-  }
-
-  html:is(.dark, :not(.dark)) .tp-actions {
-    gap: 10px;
-    margin: 20px 4px 0;
-  }
-
-  html:is(.dark, :not(.dark)) .tp-reject,
-  html:is(.dark, :not(.dark)) .tp-accept {
-    min-height: 48px;
-    border: 0;
-    border-radius: 13px;
-    color: #ffffff;
-    font-size: 15px;
-    font-weight: 600;
-  }
-
-  html:is(.dark, :not(.dark)) .tp-reject { background: var(--gx-danger); }
-  html:is(.dark, :not(.dark)) .tp-accept { background: var(--gx-primary); }
 
 
 }
@@ -11250,32 +9364,6 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
 }
 
 /* Analyze loading skeleton: the plan's own layout with shimmering blocks. */
-.tp-skel {
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--foreground) 6%, transparent) 20%,
-    color-mix(in srgb, var(--foreground) 12%, transparent) 45%,
-    color-mix(in srgb, var(--foreground) 6%, transparent) 70%
-  );
-  background-size: 200% 100%;
-  animation: gx-skeleton-shimmer 1.6s linear infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tp-skel { animation: none; }
-}
-
-@media (max-width: 1023px) {
-  html:is(.dark, :not(.dark)) .tp-sheet.is-loading .tp-skel-title { width: 220px; height: 22px; margin-top: 0; border-radius: 6px; }
-  html:is(.dark, :not(.dark)) .tp-sheet.is-loading .tp-skel-direction { width: 72px; height: 24px; border-radius: 6px; }
-  html:is(.dark, :not(.dark)) .tp-sheet.is-loading .tp-entry .tp-skel-label { width: 44px; height: 11px; margin-top: 0; }
-  html:is(.dark, :not(.dark)) .tp-sheet.is-loading .tp-skel-line { width: 90px; height: 13px; margin-top: 10px; }
-  html:is(.dark, :not(.dark)) .tp-sheet.is-loading .tp-level .tp-skel-label { width: 60px; height: 11px; }
-  html:is(.dark, :not(.dark)) .tp-sheet.is-loading .tp-skel-level { width: 80px; height: 16px; margin-top: 8px; }
-  html:is(.dark, :not(.dark)) .tp-sheet.is-loading .tp-rr .tp-skel-line { margin-top: 0; }
-  html:is(.dark, :not(.dark)) .tp-sheet.is-loading .tp-rr .tp-skel-level { width: 56px; margin-top: 0; }
-  html:is(.dark, :not(.dark)) .tp-sheet.is-loading .tp-skel-button { min-height: 48px; border-radius: 13px; }
-}
 
 /* The drawer grips only exist in the phone layout. */
 @media (min-width: 1024px) {
@@ -11493,8 +9581,6 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
 
 @media (prefers-reduced-motion: reduce) {
   .gx-skel,
-  .home-activity-skeleton span,
-  .tp-skel,
   .nl-an-skel,
   .chart-loading-skeleton::after,
   .equity-chart-skeleton-track::after { animation: none !important; }
@@ -11985,19 +10071,6 @@ html.dark .home-rail-news-event.is-medium-impact .home-rail-news-currency {
    ============================================================ */
 
 /* Phones and tablets: open risk sits as a third stat beside realized / unrealized. */
-
-.home-chart-stats {
-  container-type: inline-size;
-}
-
-.home-chart-stats dt,
-.home-chart-stats dd {
-  white-space: nowrap;
-}
-
-.home-chart-stat-risk dt span {
-  color: var(--muted);
-}
 
 /* Small laptops: a third column squeezes the news titles and the hero stats,
    so Today and News share a row under the balance instead. */

@@ -7,6 +7,7 @@ import { ChevronRight, LogOut, Play, Volume1, Volume2, VolumeX } from "lucide-re
 import { PhoneSettingsPicker } from "@/components/settings/phone-settings-ui";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { apiUrl } from "@/lib/api/url";
+import { clearHomeCache } from "@/lib/home/home-cache";
 import { RiskWorkspace, type PaperRiskPolicy } from "@/components/risk/risk-workspace";
 import { useTextSize } from "@/components/providers/text-size-provider";
 import { playNotificationSound } from "@/lib/notifications/play";
@@ -185,6 +186,7 @@ export function SettingsPanel({
   async function signOut() {
     if (signingOut) return;
     setSigningOut(true);
+    clearHomeCache();
     try {
       await fetch(apiUrl("/api/auth/logout"), { method: "POST", credentials: "include" });
     } finally {

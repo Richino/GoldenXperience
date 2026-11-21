@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useReducer, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useReducer, type ReactNode } from "react";
 import { HomeLoadingSkeleton } from "@/components/ui/home-loading-skeleton";
 import { HOME_LOADING_CEILING_MS, initialHomeLoadingState, updateHomeLoading } from "@/lib/home/loading";
 
@@ -12,9 +12,15 @@ export function useHomeSectionReady(section: string, ready: boolean) {
   useEffect(() => { report?.({ section, ready }); }, [report, section, ready]);
 }
 
-export function HomeLoadingBoundary({ ready, children }: { ready: Record<string, boolean>; children: ReactNode }) {
+export function HomeLoadingBoundary({ ready, revealNow = false, children }: {
+  ready: Record<string, boolean>;
+  /** Home was restored from this device's last load: show it without waiting. */
+  revealNow?: boolean;
+  children: ReactNode;
+}) {
   const [state, dispatch] = useReducer(updateHomeLoading, undefined, initialHomeLoadingState);
   const report = useCallback((update: { section: string; ready: boolean }) => dispatch(update), []);
+  useLayoutEffect(() => { if (revealNow) dispatch({ ceiling: true }); }, [revealNow]);
   // `ready` carries the page's own requests; cards report theirs through
   // context. The reducer latches the reveal so refreshes never re-hide Home.
   const readyKey = Object.entries(ready).map(([section, settled]) => `${section}:${settled}`).join(",");

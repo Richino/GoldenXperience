@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { HomeCurrentPosition } from "@/components/dashboard/home-rail";
 import {
   LedgerHome,
@@ -32,6 +32,7 @@ import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import type { OpenPositionFill } from "@/lib/market-stream/use-open-positions";
 import { snapshotFills, type HomeFinancialSnapshot } from "@/lib/home/financial-snapshot";
+import { readHomeCache, writeHomeCache } from "@/lib/home/home-cache";
 import type { AccountBalanceHistoryPoint, AccountSummary, JournalTrade, MajorInstrument } from "@/types/forex";
 import type { PendingManualEntry } from "@/types/pending-entry";
 
@@ -156,6 +157,11 @@ export type DashboardJournal = {
   };
 };
 
+type CachedJournal = Pick<DashboardJournal, "trades" | "summary">;
+function saveHome(patch: { account?: HomeFinancialSnapshot; journal?: CachedJournal; openTrades?: Trade[]; pending?: PendingManualEntry[] }) {
+  writeHomeCache(patch);
+}
+
 async function dashboardData<T>(path: string, timeoutMs = 12_000): Promise<T> {
   const response = await fetch(apiUrl(path), { credentials: "include", cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
   if (!response.ok) throw new Error("Dashboard data is temporarily unavailable.");
@@ -259,14 +265,36 @@ export function DashboardView({
     return { account: state, history: state, positions: state, journal: state, pending: state };
   });
   const loading = useRef(new Set<string>());
+  const [pendingEntries, setPendingEntries] = useState<PendingManualEntry[]>(() =>
+    initialPendingEntries.filter((entry) => entry.status === "PENDING" || entry.status === "TRIGGERING"),
+  );
+  // Launches show the last Home this device loaded, then refresh it live.
+  const [restored, setRestored] = useState(false);
+  useLayoutEffect(() => {
+    if (!initialLoading) return;
+    const cache = readHomeCache<HomeFinancialSnapshot, CachedJournal, Trade, PendingManualEntry>();
+    if (!cache?.account || !cache.journal || !cache.openTrades || !cache.pending) return;
+    try {
+      const verified = verifiedAccountSummary(cache.account);
+      if (!verified) return;
+      const cachedFills = snapshotFills(cache.account);
+      /* eslint-disable react-hooks/set-state-in-effect -- applied before the first paint on purpose */
+      setFinancial({ account: verified, history: cache.account.history, fills: cachedFills, checkedAt: cache.account.checkedAt });
+      setJournalTrades(cache.journal.trades);
+      setJournalSummary(cache.journal.summary ?? null);
+      setOverviewOpen(cache.openTrades);
+      setPendingEntries(cache.pending);
+      setLoadState({ account: "ready", history: "ready", positions: "ready", journal: "ready", pending: "ready" });
+      setRestored(true);
+      /* eslint-enable react-hooks/set-state-in-effect */
+    } catch { /* An old or partial record just means waiting for live data. */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
+  }, []);
   const finishLoad = useCallback((key: keyof DashboardLoadState, failed = false) => {
     setLoadState(current => ({ ...current, [key]: failed
       ? current[key] === "ready" || current[key] === "stale" ? "stale" : "error"
       : "ready" }));
   }, []);
-  const [pendingEntries, setPendingEntries] = useState<PendingManualEntry[]>(() =>
-    initialPendingEntries.filter((entry) => entry.status === "PENDING" || entry.status === "TRIGGERING"),
-  );
   const [pendingEntryError, setPendingEntryError] = useState<string | null>(null);
   const [cancellingPendingId, setCancellingPendingId] = useState<string | null>(null);
   const [pendingCancellation, setPendingCancellation] = useState<PendingManualEntry | null>(null);
@@ -335,6 +363,7 @@ export function DashboardView({
       const payload = await dashboardData<DashboardJournal>("/api/journal/trades?limit=50&filter=all&sync=background");
       setJournalTrades(payload.trades); setJournalSummary(payload.summary ?? null);
       setJournalSync(payload.brokerSync ?? null); finishLoad("journal");
+      saveHome({ journal: { trades: payload.trades, summary: payload.summary } });
     } catch (reason) { finishLoad("journal", true); throw reason; }
     finally { loading.current.delete("journal"); }
   }, [finishLoad]);
@@ -349,7 +378,7 @@ export function DashboardView({
       const results = await Promise.allSettled([
         dashboardData<{ watchlist: DashboardWatchRow[] }>("/api/watchlist").then(payload => setWatchlist(payload.watchlist)),
         dashboardData<{ trades: Trade[] }>("/api/paper-cycle/open-trades").then(payload => {
-          setOverviewOpen(payload.trades); finishLoad("positions");
+          setOverviewOpen(payload.trades); finishLoad("positions"); saveHome({ openTrades: payload.trades });
         }).catch(reason => { finishLoad("positions", true); throw reason; }),
         refreshJournal(),
       ]);
@@ -375,6 +404,7 @@ export function DashboardView({
       if (!verified) throw new Error(ACCOUNT_UNAVAILABLE_MESSAGE);
       const nextFills = snapshotFills(payload);
       setFinancial({ account: verified, history: payload.history, fills: nextFills, checkedAt: payload.checkedAt });
+      saveHome({ account: payload });
       setAccountError(null);
       finishLoad("account");
       finishLoad("history");
@@ -391,7 +421,9 @@ export function DashboardView({
     loading.current.add("pending");
     try {
       const payload = await dashboardData<{ entries?: PendingManualEntry[] }>("/api/pending-entries?scope=active");
-      setPendingEntries((payload.entries ?? []).filter((entry) => entry.status === "PENDING" || entry.status === "TRIGGERING"));
+      const active = (payload.entries ?? []).filter((entry) => entry.status === "PENDING" || entry.status === "TRIGGERING");
+      setPendingEntries(active);
+      saveHome({ pending: active });
       setPendingEntryError(null);
       finishLoad("pending");
     } catch {
@@ -625,7 +657,7 @@ export function DashboardView({
   return (
     <>
       {/* Home appears once every section has settled (loaded or failed). */}
-      <HomeLoadingBoundary ready={{
+      <HomeLoadingBoundary revealNow={restored} ready={{
         account: loadState.account !== "loading",
         history: loadState.history !== "loading",
         positions: loadState.positions !== "loading",

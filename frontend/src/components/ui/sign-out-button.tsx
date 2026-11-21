@@ -4,6 +4,7 @@ import { LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { apiUrl } from "@/lib/api/url";
+import { clearHomeCache } from "@/lib/home/home-cache";
 
 export function SignOutButton({
   compact = false,
@@ -20,6 +21,7 @@ export function SignOutButton({
   async function signOut() {
     if (busy) return;
     setBusy(true);
+    clearHomeCache();
 
     try {
       await fetch(apiUrl("/api/auth/logout"), {

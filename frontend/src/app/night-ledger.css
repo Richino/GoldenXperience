@@ -113,18 +113,6 @@
 /* ------------------------------------------------------------------ type */
 
 /* Page titles and the one hero number per screen use the display face. */
-html:is(.dark, :not(.dark)) body :is(
-  .text-display,
-  .trades-view .trades-header h1,
-  .markets-workspace .markets-header h1,
-  .settings-view .text-display
-) {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: clamp(2.5rem, 4.6vw, 4rem);
-  letter-spacing: -0.05em;
-  line-height: 0.92;
-}
 
 /* -------------------------------------------------------- desktop nav rail */
 
@@ -197,19 +185,6 @@ html:is(.dark, :not(.dark)) body :is(
   .app-sidebar .brand-mark-sidebar-icon {
     width: 38px;
     height: 38px;
-  }
-
-  .app-sidebar .brand-gx {
-    color: var(--on-accent);
-    font-family: var(--font-display);
-    font-size: 1.25rem;
-    font-weight: 800;
-    letter-spacing: -0.04em;
-    line-height: 1;
-  }
-
-  .app-sidebar .brand-gx-sub {
-    display: none;
   }
 
   html:is(.dark, :not(.dark)) body .app-sidebar .sidebar-nav {
@@ -6567,13 +6542,6 @@ html:is(.dark, :not(.dark)) body .signals-view .workspace-tab-btn.workspace-tab-
 }
 
 /* Phone switches: solid lime track, ink knob, as on desktop. */
-html:is(.dark, :not(.dark)) body .phone-settings-switch.is-on {
-  background: var(--accent-fill);
-}
-
-html:is(.dark, :not(.dark)) body .phone-settings-switch.is-on > span {
-  background: var(--on-accent);
-}
 
 /* Markets / chart AI proposal, drawn with the Analyze parts above: a sheet on
    phones, a centred card on desktop. Markup: components/analysis/manual-proposal.tsx. */
@@ -8929,26 +8897,6 @@ html:is(.dark, :not(.dark)) body .analysis-mode-choices .analysis-mode-stop::bef
   background: linear-gradient(var(--danger), var(--danger)) center / 12px 12px no-repeat, var(--danger-soft);
   border-radius: 12px;
 }
-html:is(.dark, :not(.dark)) body .analysis-mode-replacement {
-  display: flex;
-  gap: 8px;
-  margin: 14px 2px 0;
-  line-height: 1.45;
-}
-html:is(.dark, :not(.dark)) body .analysis-mode-replacement::before {
-  content: "i";
-  display: grid;
-  flex: none;
-  width: 16px;
-  height: 16px;
-  place-items: center;
-  margin-top: 1px;
-  border: 1px solid var(--border-strong);
-  border-radius: 50%;
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: 10px;
-  font-style: normal;
-}
 
 /* ============================================================ BOOT SPLASH
    One server-rendered splash, controlled in place after hydration.
@@ -9786,7 +9734,21 @@ html:is(.dark, :not(.dark)) body .pending-entry-dialog.is-plan > footer.nl-pe-ac
     padding: 12px 20px calc(14px + env(safe-area-inset-bottom, 0px));
   }
 }
-/* The drawer itself ends above the keyboard; its footer needs no safe-area gap. */
+@media (max-width: 639px) {
+  html:is(.dark, :not(.dark)) body .pending-entry-backdrop[data-keyboard-open="true"]:has(> .pending-entry-dialog.is-plan > footer.nl-pe-actions) {
+    padding-bottom: 0;
+  }
+  /* Carry the sheet surface behind the keyboard while keeping the form and
+     actions inside the visible viewport, as in the pair picker. */
+  html:is(.dark, :not(.dark)) body .pending-entry-backdrop[data-keyboard-open="true"] > .pending-entry-dialog.is-plan:has(> footer.nl-pe-actions) {
+    --pe-content-height: calc(var(--pe-visible-height) - max(3rem, calc(env(safe-area-inset-top, 0px) + 0.75rem)));
+    height: calc(min(var(--pe-resting-height), var(--pe-content-height)) + var(--pe-keyboard-offset));
+    max-height: calc(var(--pe-content-height) + var(--pe-keyboard-offset));
+    padding-bottom: var(--pe-keyboard-offset);
+    gap: 0;
+  }
+}
+/* The footer already sits above the keyboard inset. */
 html:is(.dark, :not(.dark)) body .pending-entry-backdrop[data-keyboard-open="true"] .pending-entry-dialog.is-plan > footer.nl-pe-actions {
   padding-bottom: 12px;
 }

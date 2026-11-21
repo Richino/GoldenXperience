@@ -12077,7 +12077,7 @@ html:is(.dark, :not(.dark)) body .signals-view .nl-terminal .nl-chart-card > .nl
 @supports (-webkit-touch-callout: none) {
   @media (max-width: 1023px) and (display-mode: standalone) {
     html:is(.dark, :not(.dark)) body .mobile-dock.ink-dock {
-      padding-bottom: max(8px, calc(env(safe-area-inset-bottom, 0px) - 6px));
+      padding-bottom: max(8px, calc(env(safe-area-inset-bottom, 0px) * 0.65));
     }
   }
 }

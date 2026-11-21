@@ -12073,6 +12073,15 @@ html:is(.dark, :not(.dark)) body .signals-view .nl-terminal .nl-chart-card > .nl
   }
 }
 
+/* Sit a little closer to the home indicator in the installed iOS app. */
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 1023px) and (display-mode: standalone) {
+    html:is(.dark, :not(.dark)) body .mobile-dock.ink-dock {
+      padding-bottom: max(8px, calc(env(safe-area-inset-bottom, 0px) - 6px));
+    }
+  }
+}
+
 /* ============================================================ PENDING ORDER SHEET · REFINED
    The pending order's details in the side panels' language: an amber tag in
    the header, the entry large with its distance from the price, a status line

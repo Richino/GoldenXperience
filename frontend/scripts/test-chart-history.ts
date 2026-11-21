@@ -513,7 +513,16 @@ assert.equal(periodChange(month), 75, "one month excludes movements older than 3
 assert.ok([hour, day, week, month].every((series) => series.at(-1)!.value === 10_225), "every range ends at the live NAV");
 assert.equal(tradingDayKey(startOfTradingDay(NOW)), tradingDayKey(NOW), "1D opens at midnight of the current ET day");
 assert.ok(day[0]!.at === startOfTradingDay(NOW).toISOString(), "the first 1D point is the trading-day open");
-assert.deepEqual([hour.length, week.length, month.length], [31, 29, 31]);
+assert.deepEqual([hour.length, week.length, month.length], [32, 32, 35]);
+
+const reversedPeak = buildAccountAmountSeries({
+  nav: 97_075.90, unrealizedPL: 0, range: "1y", now: NOW,
+  history: brokerHistory([
+    { hoursAgo: 48, change: 2_404.95 },
+    { hoursAgo: 47, change: -5_329.05 },
+  ], 100_000),
+});
+assert.equal(Math.max(...reversedPeak.map(point => point.value)), 102_404.95, "preserve a peak reversed within the same weekly bucket");
 
 for (const [name, series] of [["hour", hour], ["day", day], ["week", week], ["month", month]] as const) {
   series.forEach((point, index) => assert.equal(point.index, index, `${name} keeps ordered time buckets`));

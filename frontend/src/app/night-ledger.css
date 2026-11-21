@@ -772,7 +772,43 @@ html:is(.dark, :not(.dark)) body .nl-hero .nl-range-tabs .account-range-btn::aft
 }
 
 .dark .nl-home .nl-chart-card {
-  --chart-up: #a2b978;
+  --chart-up: var(--accent);
+}
+
+.nl-home .account-chart.is-ledger .recharts-area-curve {
+  filter: drop-shadow(0 0 3px rgb(180 200 155 / 12%));
+}
+
+.account-chart-scrubber {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  touch-action: pan-y;
+  cursor: crosshair;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.account-chart-scrub-line {
+  position: absolute;
+  width: 1px;
+  background: color-mix(in srgb, var(--foreground) 35%, transparent);
+  pointer-events: none;
+}
+
+.account-chart-scrub-dot {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--hero-surface, var(--background));
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--foreground) 7%, transparent);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.account-chart-scrubber .account-chart-active-label {
+  min-width: 150px;
+  font-variant-numeric: tabular-nums;
 }
 
 .nl-home .nl-chart-card .account-chart-active-label {
@@ -1730,8 +1766,8 @@ html:is(.dark, :not(.dark)) body .nl-chart-card .recharts-cartesian-axis-tick-va
   }
 
   .nl-chart-card {
-    height: 150px;
-    margin: 0 -16px;
+    height: 200px;
+    margin: 0;
     padding: 0;
     border: 0;
     border-radius: 0;

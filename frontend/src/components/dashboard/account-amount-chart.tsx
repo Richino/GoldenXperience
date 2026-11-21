@@ -5,7 +5,6 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
-  ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -32,7 +31,6 @@ export type AccountChartPoint = {
 export type AccountChartRange = "1h" | "1d" | "1w" | "1m" | "3m" | "1y" | "all";
 
 const RANGES: AccountChartRange[] = ["1d", "1w", "1m", "3m", "1y"];
-const IOS_SWIPE_EDGE_PX = 24;
 
 const RANGE_CONFIG: Record<AccountChartRange, { tab: string; label: string; durationMs: number; bucketMs: number }> = {
   "1h": { tab: "1H", label: "the last hour", durationMs: 60 * 60_000, bucketMs: 2 * 60_000 },
@@ -129,11 +127,13 @@ function LedgerValueTick({
   y = 0,
   payload,
   digits = 1,
+  offset = 56,
 }: {
   x?: number;
   y?: number;
   payload?: { value?: number };
   digits?: number;
+  offset?: number;
 }) {
   const value = payload?.value;
   if (typeof value !== "number") return null;
@@ -147,7 +147,7 @@ function LedgerValueTick({
   return (
     <text
       className="recharts-text recharts-cartesian-axis-tick-value"
-      x={x + 56}
+      x={x + offset}
       y={y}
       dy={4}
       fill="var(--muted)"
@@ -165,17 +165,16 @@ function AccountChartAxisTick({
   y = 0,
   width = 0,
   payload,
-  labels,
+  range,
 }: {
   x?: number;
   y?: number;
   width?: number;
   payload?: { value?: string | number };
-  /** Axis text by point index; the axis itself is keyed by the unique index. */
-  labels?: string[];
+  range: AccountChartRange;
 }) {
   const textAnchor = x <= 12 ? "start" : x >= width - 12 ? "end" : "middle";
-  const text = labels && typeof payload?.value === "number" ? labels[payload.value] : payload?.value;
+  const text = typeof payload?.value === "number" ? formatAxisTick(payload.value, range) : payload?.value;
   return (
     <text
       className="recharts-text recharts-cartesian-axis-tick-value"
@@ -262,15 +261,35 @@ export function buildAccountAmountSeries({
     },
   ];
 
+  let movementIndex = 0;
   buckets.forEach((bucket, index) => {
+    const end = Math.min(cutoff + (index + 1) * config.bucketMs, now);
+    // Preserve intrabucket highs and lows, including peaks reversed before
+    // the weekly close in the 1Y view.
+    while (movementIndex < movements.length && movements[movementIndex].at <= end) {
+      const movement = movements[movementIndex++];
+      runningValue += movement.pl;
+      points.push({
+        label: new Date(movement.at).toLocaleString(),
+        axisLabel: formatAxisTick(movement.at, range),
+        value: Number(runningValue.toFixed(2)),
+        change: Number(movement.pl.toFixed(2)),
+        at: new Date(movement.at).toISOString(),
+        movementCount: 1,
+        includesOpenPL: false,
+        index: points.length,
+      });
+    }
     const isLast = index === buckets.length - 1;
-    const change = bucket.change + (isLast ? unrealizedPL : 0);
+    const change = isLast ? unrealizedPL : 0;
     runningValue += change;
     points.push({
       ...bucket,
+      at: new Date(end).toISOString(),
+      movementCount: 0,
       change: Number(change.toFixed(2)),
       value: Number((isLast ? nav : runningValue).toFixed(2)),
-      index: index + 1,
+      index: points.length,
     });
   });
 
@@ -375,6 +394,129 @@ function ActiveValueLabel({
           </span>
         ) : null}
       </span>
+    </div>
+  );
+}
+
+/** Keep pointer updates inside the overlay so scrubbing never redraws the chart. */
+function AccountChartScrubber({
+  series,
+  range,
+  currency,
+  stroke,
+}: {
+  series: AccountChartPoint[];
+  range: AccountChartRange;
+  currency: string;
+  stroke: string;
+}) {
+  const host = useRef<HTMLDivElement>(null);
+  const frame = useRef<number | null>(null);
+  const gesture = useRef<{ id: number; x: number; y: number; active: boolean } | null>(null);
+  const [cursor, setCursor] = useState<{ x: number; y: number; top: number; height: number; point: AccountChartPoint } | null>(null);
+
+  function clear() {
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+    frame.current = null;
+    setCursor(null);
+  }
+
+  useEffect(() => {
+    return () => { if (frame.current !== null) cancelAnimationFrame(frame.current); };
+  }, [series, range]);
+
+  useEffect(() => {
+    const overlay = host.current;
+    if (!overlay || !CSS.supports("-webkit-touch-callout", "none")) return;
+    function claimEdgeTouch(event: TouchEvent) {
+      if (event.touches.length !== 1 || !event.cancelable) return;
+      const x = event.touches[0]!.clientX;
+      if (x <= 24 || x >= window.innerWidth - 24) event.preventDefault();
+    }
+    overlay.addEventListener("touchstart", claimEdgeTouch, { passive: false });
+    return () => overlay.removeEventListener("touchstart", claimEdgeTouch);
+  }, []);
+
+  function track(clientX: number) {
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(() => {
+      frame.current = null;
+      const overlay = host.current;
+      const curve = overlay?.parentElement?.querySelector<SVGPathElement>(".recharts-area-curve");
+      const matrix = curve?.getScreenCTM();
+      if (!overlay || !curve || !matrix || !series.length) return;
+      const bounds = overlay.getBoundingClientRect();
+      const box = curve.getBBox();
+      const local = new DOMPoint(clientX, bounds.top).matrixTransform(matrix.inverse());
+      const x = Math.max(box.x, Math.min(box.x + box.width, local.x));
+      // Follow the rendered curve continuously instead of snapping the dot
+      // between irregularly spaced transactions.
+      let from = 0;
+      let to = curve.getTotalLength();
+      for (let i = 0; i < 16; i += 1) {
+        const middle = (from + to) / 2;
+        if (curve.getPointAtLength(middle).x < x) from = middle;
+        else to = middle;
+      }
+      const onCurve = curve.getPointAtLength((from + to) / 2).matrixTransform(matrix);
+      const fraction = box.width ? (x - box.x) / box.width : 0;
+      const first = Date.parse(series[0].at);
+      const last = Date.parse(series.at(-1)!.at);
+      const time = first + fraction * (last - first);
+      // Show the last booked balance at this time, including closely packed fills.
+      let low = 0;
+      let high = series.length - 1;
+      while (low < high) {
+        const middle = Math.ceil((low + high) / 2);
+        if (Date.parse(series[middle].at) <= time) low = middle;
+        else high = middle - 1;
+      }
+      const grid = overlay.parentElement?.querySelector<SVGRectElement>(".recharts-cartesian-grid-bg");
+      const plot = grid?.getBoundingClientRect();
+      setCursor({
+        x: onCurve.x - bounds.left,
+        y: onCurve.y - bounds.top,
+        top: plot?.top ? plot.top - bounds.top : 18,
+        height: plot?.height || Math.max(0, bounds.height - 46),
+        point: series[low],
+      });
+    });
+  }
+
+  function down(event: PointerEvent<HTMLDivElement>) {
+    if (!event.isPrimary) return;
+    if (event.pointerType === "mouse") { track(event.clientX); return; }
+    gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, active: false };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    track(event.clientX);
+  }
+
+  function move(event: PointerEvent<HTMLDivElement>) {
+    if (event.pointerType === "mouse") { track(event.clientX); return; }
+    const drag = gesture.current;
+    if (!drag || drag.id !== event.pointerId) return;
+    if (!drag.active) {
+      const dx = Math.abs(event.clientX - drag.x);
+      const dy = Math.abs(event.clientY - drag.y);
+      if (dy > dx && dy > 6) { clear(); return; }
+      if (dx < 4) return;
+      drag.active = true;
+    }
+    track(event.clientX);
+  }
+
+  function end() { gesture.current = null; clear(); }
+
+  return (
+    <div ref={host} className="account-chart-scrubber" onPointerDown={down} onPointerMove={move}
+      onPointerLeave={() => { if (!gesture.current) clear(); }}
+      onPointerUp={event => { if (event.pointerType !== "mouse") end(); }}
+      onPointerCancel={end} onLostPointerCapture={end}>
+      <ActiveValueLabel point={cursor?.point ?? null} x="50%" range={range} currency={currency} />
+      {cursor ? <>
+        <span className="account-chart-scrub-line" style={{ left: cursor.x, top: cursor.top, height: cursor.height }} />
+        <span className="account-chart-scrub-dot" style={{ left: cursor.x, top: cursor.y, background: stroke }} />
+      </> : null}
     </div>
   );
 }
@@ -497,13 +639,9 @@ export function AccountAmountChart({
   onRangeChange: (range: AccountChartRange) => void;
   /** When the range switcher is rendered elsewhere (e.g. beside the balance). */
   hideRangeRow?: boolean;
-  /**
-   * "ledger" is the Home redesign: dashed guides, a right-hand value scale, a
-   * flat low-opacity fill and a dot on the latest point. Below 1024px the
-   * stylesheet hides the scales so the line runs edge to edge.
-   */
+  /** Home balance chart, with compact scales and touch scrubbing on phones. */
   variant?: "default" | "ledger";
-  /** Ledger only: false drops the axes and guides so the line runs edge to edge. */
+  /** Ledger only: false uses compact scales and touch scrubbing. */
   scales?: boolean;
 }) {
   const ledger = variant === "ledger";
@@ -512,30 +650,7 @@ export function AccountAmountChart({
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   // Pointer x inside the canvas, so the label can follow the scrub.
   const [activeX, setActiveX] = useState<number | null>(null);
-  const canvasRef = useRef<HTMLDivElement>(null);
-  const touch = useRef<{ id: number; x: number; y: number; scrubbing: boolean } | null>(null);
-  const [touchIndex, setTouchIndex] = useState<number | null>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!bare || !canvas || !CSS.supports("-webkit-touch-callout", "none")) return;
-
-    // iOS can claim a screen-edge gesture for history navigation before the
-    // first move. Cancel at touchstart, confined to the edges of this chart.
-    function claimEdgeTouch(event: TouchEvent) {
-      if (event.touches.length !== 1 || !event.cancelable) return;
-      const x = event.touches[0]!.clientX;
-      if (x <= IOS_SWIPE_EDGE_PX || x >= window.innerWidth - IOS_SWIPE_EDGE_PX) {
-        event.preventDefault();
-      }
-    }
-
-    canvas.addEventListener("touchstart", claimEdgeTouch, { passive: false });
-    return () => canvas.removeEventListener("touchstart", claimEdgeTouch);
-  }, [bare]);
-
   const values = useMemo(() => series.map((point) => point.value), [series]);
-  const axisLabels = useMemo(() => series.map((point) => point.axisLabel), [series]);
   const min = Math.min(...values);
   const max = Math.max(...values);
   const room = Math.max((max - min) * 0.12, 1);
@@ -543,36 +658,11 @@ export function AccountAmountChart({
   const scaleSpan = (max - min + room * 2) / 1000;
   const scaleDigits = scaleSpan < 0.5 ? 2 : scaleSpan < 5 ? 1 : 0;
   const activePoint = activeIndex === null ? null : (series[activeIndex] ?? null);
-  const touchPoint = !bare || touchIndex === null ? null : (series[touchIndex] ?? null);
   const opening = series[0]?.value ?? 0;
   const latest = series.at(-1)?.value ?? opening;
   const netChange = latest - opening;
   const tone = accountSeriesTone(series);
   const stroke = seriesStroke(tone);
-  // Finer buckets (1H: 2-min ×30, 1D: hourly ×24, 1W: 6-hour ×28, 1M: daily ×30)
-  // mean more points, so each range skips enough labels to keep the axis
-  // uncrowded: ~6 for 1H, ~7 for 1D, one-per-day for 1W, ~6 for 1M.
-  const tickInterval = (() => {
-    switch (range) {
-      case "1h":
-        return 4;
-      case "1d":
-      case "1w":
-        return 3;
-      case "1m":
-        return 4;
-      case "3m":
-        return 8;
-      case "1y":
-        return 5;
-      case "all":
-        return 6;
-      default: {
-        const _never: never = range;
-        return _never;
-      }
-    }
-  })();
 
   function handleChartFocus(event: { activeTooltipIndex?: number | string | null; activeCoordinate?: { x?: number } }) {
     const x = event.activeCoordinate?.x;
@@ -594,35 +684,6 @@ export function AccountAmountChart({
     setActiveX(null);
   }
 
-  function startTouch(event: PointerEvent<HTMLDivElement>) {
-    if (event.pointerType !== "touch" || !event.isPrimary || series.length < 2) return;
-    touch.current = { id: event.pointerId, x: event.clientX, y: event.clientY, scrubbing: false };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  }
-
-  function moveTouch(event: PointerEvent<HTMLDivElement>) {
-    const gesture = touch.current;
-    if (!gesture || gesture.id !== event.pointerId) return;
-    if (!gesture.scrubbing) {
-      const dx = Math.abs(event.clientX - gesture.x);
-      const dy = Math.abs(event.clientY - gesture.y);
-      if (dx < 6 || dx <= dy) return;
-      gesture.scrubbing = true;
-      clearFocus();
-    }
-
-    // The edge-to-edge chart has no horizontal inset and its points are evenly spaced.
-    const { left, width } = event.currentTarget.getBoundingClientRect();
-    if (width <= 0) return;
-    const fraction = Math.max(0, Math.min(1, (event.clientX - left) / width));
-    setTouchIndex(Math.round(fraction * (series.length - 1)));
-  }
-
-  function endTouch(event: PointerEvent<HTMLDivElement>) {
-    if (touch.current?.id !== event.pointerId) return;
-    touch.current = null;
-    setTouchIndex(null);
-  }
 
   return (
     <div className={`account-chart${ledger ? " is-ledger" : ""}`}>
@@ -631,24 +692,14 @@ export function AccountAmountChart({
       )}
 
       <div
-        ref={canvasRef}
         className={`account-chart-canvas${ledger ? "" : " mt-4"}`}
         role="img"
         aria-label={`Account balance over ${RANGE_CONFIG[range].label}`}
-        onPointerDown={bare ? startTouch : undefined}
-        onPointerMove={bare ? moveTouch : undefined}
-        onPointerUp={bare ? endTouch : undefined}
-        onPointerCancel={bare ? endTouch : undefined}
-        onLostPointerCapture={endTouch}
-        // Keep Recharts' native touch tooltip from competing with the scrub cursor.
-        onTouchMoveCapture={bare ? (event) => event.stopPropagation() : undefined}
+
       >
-        <ActiveValueLabel
-          point={touchPoint ?? activePoint}
-          x={touchPoint ? `${(touchPoint.index / (series.length - 1)) * 100}%` : activeX === null ? null : `${activeX}px`}
-          range={range}
-          currency={currency}
-        />
+        {ledger ? <AccountChartScrubber key={range} series={series} range={range} currency={currency} stroke={stroke} /> : (
+          <ActiveValueLabel point={activePoint} x={activeX === null ? null : `${activeX}px`} range={range} currency={currency} />
+        )}
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={series}
@@ -657,55 +708,63 @@ export function AccountAmountChart({
             baseValue={min - room}
             margin={
               bare
-                ? { top: 10, right: 0, left: 0, bottom: 0 }
+                ? { top: 18, right: 4, left: 4, bottom: 2 }
                 : ledger
                   ? { top: 18, right: 0, left: 0, bottom: 6 }
                   : { top: 14, right: 4, left: 4, bottom: 4 }
             }
-            onMouseMove={handleChartFocus}
-            onMouseLeave={clearFocus}
-            onTouchStart={bare ? undefined : handleChartFocus}
-            onTouchMove={bare ? undefined : handleChartFocus}
-            onTouchEnd={bare ? undefined : clearFocus}
+            onMouseMove={ledger ? undefined : handleChartFocus}
+            onMouseLeave={ledger ? undefined : clearFocus}
+            onTouchStart={ledger ? undefined : handleChartFocus}
+            onTouchMove={ledger ? undefined : handleChartFocus}
+            onTouchEnd={ledger ? undefined : clearFocus}
           >
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={stroke} stopOpacity={0.28} />
+                <stop offset="0%" stopColor={stroke} stopOpacity={ledger ? 0.22 : 0.28} />
+                <stop offset="65%" stopColor={stroke} stopOpacity={ledger ? 0.055 : 0.05} />
                 <stop offset="100%" stopColor={stroke} stopOpacity={0} />
               </linearGradient>
+              <linearGradient id={`${gradientId}-line`} x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor={stroke} stopOpacity={0.55} />
+                <stop offset="55%" stopColor={stroke} stopOpacity={0.85} />
+                <stop offset="100%" stopColor={stroke} />
+              </linearGradient>
             </defs>
-            {bare ? null : <CartesianGrid
+            <CartesianGrid
               vertical={false}
               stroke="var(--border)"
-              strokeOpacity={ledger ? 1 : 0.45}
+              strokeOpacity={ledger ? 0.55 : 0.45}
               strokeDasharray={ledger ? "4 4" : undefined}
-            />}
-            {/* Keyed by the unique index: day/hour labels repeat (1W has four
-                "Tue" buckets), and duplicate categories made the active dot
-                snap to the first match instead of the point under the pointer. */}
+            />
+            {ledger ? <ReferenceLine y={opening} stroke="var(--muted)" strokeOpacity={0.4} strokeDasharray="3 5" /> : null}
             <XAxis
-              dataKey="index"
+              dataKey={(point: AccountChartPoint) => Date.parse(point.at)}
+              type="number"
+              domain={["dataMin", "dataMax"]}
               axisLine={false}
               tickLine={false}
-              tick={<AccountChartAxisTick labels={axisLabels} />}
-              interval={tickInterval}
-              hide={bare}
+              tick={<AccountChartAxisTick range={range} />}
+              tickCount={bare ? 3 : 5}
+              minTickGap={40}
+              interval="preserveStartEnd"
+              height={26}
             />
-            {ledger && !bare ? (
+            {ledger ? (
               <YAxis
                 orientation="right"
                 domain={[min - room, max + room]}
                 axisLine={false}
                 tickLine={false}
-                width={64}
-                tickCount={4}
-                tick={<LedgerValueTick digits={scaleDigits} />}
+                width={bare ? 32 : 64}
+                tickCount={3}
+                tick={<LedgerValueTick digits={scaleDigits} offset={bare ? 24 : 56} />}
               />
             ) : (
               <YAxis hide domain={[min - room, max + room]} />
             )}
             <Tooltip
-              active={touchPoint ? false : undefined}
+              active={ledger ? false : undefined}
               isAnimationActive={false}
               cursor={{ stroke, strokeWidth: 1, strokeDasharray: "4 4", strokeOpacity: 0.55 }}
               content={(props: {
@@ -719,52 +778,40 @@ export function AccountAmountChart({
                 />
               )}
             />
-            {touchPoint ? <ReferenceLine x={touchPoint.index} stroke={stroke} strokeOpacity={0.65} strokeDasharray="4 4" /> : null}
             <Area
-              type={ledger ? "monotone" : "linear"}
+              type={ledger ? "bumpX" : "linear"}
               dataKey="value"
-              stroke={stroke}
-              strokeWidth={ledger ? 2.5 : 2.25}
-              strokeLinecap="butt"
+              stroke={ledger ? `url(#${gradientId}-line)` : stroke}
+              strokeWidth={ledger ? 1.5 : 2.25}
+              strokeLinecap="round"
               strokeLinejoin={ledger ? "round" : "miter"}
-              fill={ledger ? stroke : `url(#${gradientId})`}
-              fillOpacity={ledger ? 0.08 : 1}
+              fill={`url(#${gradientId})`}
+              fillOpacity={1}
               isAnimationActive={false}
               dot={
                 ledger
                   ? (props: { cx?: number; cy?: number; index?: number }) =>
                       props.index === series.length - 1 && props.cx !== undefined && props.cy !== undefined ? (
-                        <circle
-                          key="latest"
-                          cx={props.cx}
-                          cy={props.cy}
-                          r={5.5}
-                          fill={stroke}
-                          stroke="var(--hero-surface, var(--surface))"
-                          strokeWidth={3}
-                        />
+                        <g key="latest">
+                          <circle cx={props.cx} cy={props.cy} r={8} fill={stroke} fillOpacity={0.1} />
+                          <circle cx={props.cx} cy={props.cy} r={3.5} fill={stroke}
+                            stroke="var(--hero-surface, var(--surface))" strokeWidth={1.5} />
+                        </g>
                       ) : (
                         <g key={`dot-${props.index}`} />
                       )
                   : false
               }
-              activeDot={(props: { cx?: number; cy?: number; payload?: AccountChartPoint }) => (
+              activeDot={ledger ? false : (props: { cx?: number; cy?: number; payload?: AccountChartPoint }) => (
                 <PnLDot cx={props.cx} cy={props.cy} payload={props.payload} radius={5} />
               )}
             />
-            {touchPoint ? (
-              <ReferenceDot x={touchPoint.index} y={touchPoint.value} r={5} fill={stroke} stroke="var(--hero-surface)" strokeWidth={2} />
-            ) : null}
           </AreaChart>
         </ResponsiveContainer>
       </div>
-
-      {/* Colour is not the only channel: the total and direction remain spoken. */}
       <p className="sr-only">
         Account balance {moneyCompact(latest, currency)},{" "}
-        {tone === "flat"
-          ? "unchanged"
-          : `${tone === "up" ? "up" : "down"} ${moneyCompact(Math.abs(netChange), currency)}`}{" "}
+        {tone === "flat" ? "unchanged" : `${tone === "up" ? "up" : "down"} ${moneyCompact(Math.abs(netChange), currency)}`}{" "}
         over {RANGE_CONFIG[range].label}, from {moneyCompact(opening, currency)}.
       </p>
     </div>

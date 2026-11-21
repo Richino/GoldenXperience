@@ -268,7 +268,14 @@ function RealizedMoneyLine({ results }: { results: number[] }) {
   const x = (i: number) => (i / Math.max(1, points.length - 1)) * width;
   const y = (v: number) => height - ((v - min) / span) * height;
   const xy = points.map((v, i) => [x(i), y(v)] as const);
-  const path = xy.map(([px, py], i) => `${i ? "L" : "M"}${px.toFixed(2)},${py.toFixed(2)}`).join(" ");
+  const path = xy.map(([px, py], i) => {
+    const end = `${px.toFixed(2)},${py.toFixed(2)}`;
+    const previous = xy[i - 1];
+    if (!previous) return `M${end}`;
+    // Both control points stay within the segment's observed range.
+    const midX = ((previous[0] + px) / 2).toFixed(2);
+    return `C${midX},${previous[1].toFixed(2)} ${midX},${py.toFixed(2)} ${end}`;
+  }).join(" ");
   const net = points.at(-1) ?? 0;
   const id = useId();
   const [endX, endY] = xy[xy.length - 1];

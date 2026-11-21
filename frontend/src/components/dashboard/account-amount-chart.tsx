@@ -31,6 +31,8 @@ export type AccountChartPoint = {
 export type AccountChartRange = "1h" | "1d" | "1w" | "1m" | "3m" | "1y" | "all";
 
 const RANGES: AccountChartRange[] = ["1d", "1w", "1m", "3m", "1y"];
+const LEDGER_PLOT_TOP = 28;
+const X_AXIS_HEIGHT = 26;
 
 const RANGE_CONFIG: Record<AccountChartRange, { tab: string; label: string; durationMs: number; bucketMs: number }> = {
   "1h": { tab: "1H", label: "the last hour", durationMs: 60 * 60_000, bucketMs: 2 * 60_000 },
@@ -116,50 +118,16 @@ function formatBucketLabel(start: number, end: number, range: AccountChartRange)
   }
 }
 
-/** Keep endpoint labels inside the SVG without moving the plotted values inward. */
-/**
- * Right-hand scale for the ledger chart: "25.5k" rather than a full amount.
- * `digits` grows as the visible range narrows, so neighbouring ticks never
- * round to the same label.
- */
-function LedgerValueTick({
-  x = 0,
-  y = 0,
-  payload,
-  digits = 1,
-  offset = 56,
-}: {
-  x?: number;
-  y?: number;
-  payload?: { value?: number };
-  digits?: number;
-  offset?: number;
-}) {
-  const value = payload?.value;
-  if (typeof value !== "number") return null;
-  const label = new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  })
-    .format(value)
-    .toLowerCase();
-  return (
-    <text
-      className="recharts-text recharts-cartesian-axis-tick-value"
-      x={x + offset}
-      y={y}
-      dy={4}
-      fill="var(--muted)"
-      fontSize={11}
-      fontFamily="var(--font-geist-mono), ui-monospace, monospace"
-      textAnchor="end"
-    >
-      {label}
-    </text>
-  );
+const ledgerValueFormat = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 0,
+});
+
+function formatLedgerValueTick(value: number) {
+  return ledgerValueFormat.format(value).toLowerCase();
 }
 
+/** Keep endpoint labels inside the SVG without moving the plotted values inward. */
 function AccountChartAxisTick({
   x = 0,
   y = 0,
@@ -362,8 +330,7 @@ function pointMoment(point: AccountChartPoint, range: AccountChartRange) {
 }
 
 /**
- * The scrubbed point: balance, when, and what changed in that step. It rides
- * above the pointer (clamped inside the canvas) so a finger never covers it.
+ * The scrubbed point: balance, when, and what changed in that step.
  */
 function ActiveValueLabel({
   point,
@@ -404,11 +371,13 @@ function AccountChartScrubber({
   range,
   currency,
   stroke,
+  bottomMargin,
 }: {
   series: AccountChartPoint[];
   range: AccountChartRange;
   currency: string;
   stroke: string;
+  bottomMargin: number;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const frame = useRef<number | null>(null);
@@ -449,16 +418,6 @@ function AccountChartScrubber({
       const box = curve.getBBox();
       const local = new DOMPoint(clientX, bounds.top).matrixTransform(matrix.inverse());
       const x = Math.max(box.x, Math.min(box.x + box.width, local.x));
-      // Follow the rendered curve continuously instead of snapping the dot
-      // between irregularly spaced transactions.
-      let from = 0;
-      let to = curve.getTotalLength();
-      for (let i = 0; i < 16; i += 1) {
-        const middle = (from + to) / 2;
-        if (curve.getPointAtLength(middle).x < x) from = middle;
-        else to = middle;
-      }
-      const onCurve = curve.getPointAtLength((from + to) / 2).matrixTransform(matrix);
       const fraction = box.width ? (x - box.x) / box.width : 0;
       const first = Date.parse(series[0].at);
       const last = Date.parse(series.at(-1)!.at);
@@ -471,13 +430,22 @@ function AccountChartScrubber({
         if (Date.parse(series[middle].at) <= time) low = middle;
         else high = middle - 1;
       }
+      // Follow the line continuously between booked balance changes.
+      let from = 0;
+      let to = curve.getTotalLength();
+      for (let i = 0; i < 16; i += 1) {
+        const middle = (from + to) / 2;
+        if (curve.getPointAtLength(middle).x < x) from = middle;
+        else to = middle;
+      }
+      const onCurve = curve.getPointAtLength((from + to) / 2).matrixTransform(matrix);
       const grid = overlay.parentElement?.querySelector<SVGRectElement>(".recharts-cartesian-grid-bg");
       const plot = grid?.getBoundingClientRect();
       setCursor({
         x: onCurve.x - bounds.left,
         y: onCurve.y - bounds.top,
-        top: plot?.top ? plot.top - bounds.top : 18,
-        height: plot?.height || Math.max(0, bounds.height - 46),
+        top: plot ? plot.top - bounds.top : LEDGER_PLOT_TOP,
+        height: plot?.height || Math.max(0, bounds.height - LEDGER_PLOT_TOP - X_AXIS_HEIGHT - bottomMargin),
         point: series[low],
       });
     });
@@ -507,13 +475,24 @@ function AccountChartScrubber({
 
   function end() { gesture.current = null; clear(); }
 
+  const pointChange = cursor?.point.index ? cursor.point.change : 0;
+  const change = Math.abs(pointChange) < 0.005 ? 0 : pointChange;
+  const changeTone = change > 0 ? "is-up" : change < 0 ? "is-down" : "is-flat";
+  const changeLabel = `${change > 0 ? "+" : change < 0 ? "−" : ""}${moneyExact(Math.abs(change), currency)}`;
+
   return (
     <div ref={host} className="account-chart-scrubber" onPointerDown={down} onPointerMove={move}
       onPointerLeave={() => { if (!gesture.current) clear(); }}
       onPointerUp={event => { if (event.pointerType !== "mouse") end(); }}
       onPointerCancel={end} onLostPointerCapture={end}>
-      <ActiveValueLabel point={cursor?.point ?? null} x="50%" range={range} currency={currency} />
       {cursor ? <>
+        <div className="account-chart-scrub-readout" style={{ left: `clamp(134px, ${cursor.x}px, calc(100% - 134px))` }}>
+          <span className="metric-number">{moneyExact(cursor.point.value, currency)}</span>
+          <span className={`account-chart-scrub-change metric-number ${changeTone}`}>
+            <span className="sr-only">P/L </span>{changeLabel}
+          </span>
+          <span>{pointMoment(cursor.point, range)}</span>
+        </div>
         <span className="account-chart-scrub-line" style={{ left: cursor.x, top: cursor.top, height: cursor.height }} />
         <span className="account-chart-scrub-dot" style={{ left: cursor.x, top: cursor.y, background: stroke }} />
       </> : null}
@@ -646,6 +625,7 @@ export function AccountAmountChart({
 }) {
   const ledger = variant === "ledger";
   const bare = ledger && !scales;
+  const bottomMargin = bare ? 2 : ledger ? 6 : 4;
   const gradientId = useId().replace(/:/g, "");
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   // Pointer x inside the canvas, so the label can follow the scrub.
@@ -654,9 +634,6 @@ export function AccountAmountChart({
   const min = Math.min(...values);
   const max = Math.max(...values);
   const room = Math.max((max - min) * 0.12, 1);
-  // Thousands shown in the ledger scale: tighter ranges need more decimals.
-  const scaleSpan = (max - min + room * 2) / 1000;
-  const scaleDigits = scaleSpan < 0.5 ? 2 : scaleSpan < 5 ? 1 : 0;
   const activePoint = activeIndex === null ? null : (series[activeIndex] ?? null);
   const opening = series[0]?.value ?? 0;
   const latest = series.at(-1)?.value ?? opening;
@@ -697,7 +674,14 @@ export function AccountAmountChart({
         aria-label={`Account balance over ${RANGE_CONFIG[range].label}`}
 
       >
-        {ledger ? <AccountChartScrubber key={range} series={series} range={range} currency={currency} stroke={stroke} /> : (
+        {ledger ? <AccountChartScrubber
+          key={range}
+          series={series}
+          range={range}
+          currency={currency}
+          stroke={stroke}
+          bottomMargin={bottomMargin}
+        /> : (
           <ActiveValueLabel point={activePoint} x={activeX === null ? null : `${activeX}px`} range={range} currency={currency} />
         )}
         <ResponsiveContainer width="100%" height="100%">
@@ -708,10 +692,10 @@ export function AccountAmountChart({
             baseValue={min - room}
             margin={
               bare
-                ? { top: 18, right: 4, left: 4, bottom: 2 }
+                ? { top: LEDGER_PLOT_TOP, right: 4, left: 4, bottom: bottomMargin }
                 : ledger
-                  ? { top: 18, right: 0, left: 0, bottom: 6 }
-                  : { top: 14, right: 4, left: 4, bottom: 4 }
+                  ? { top: LEDGER_PLOT_TOP, right: 0, left: 0, bottom: bottomMargin }
+                  : { top: 14, right: 4, left: 4, bottom: bottomMargin }
             }
             onMouseMove={ledger ? undefined : handleChartFocus}
             onMouseLeave={ledger ? undefined : clearFocus}
@@ -748,7 +732,7 @@ export function AccountAmountChart({
               tickCount={bare ? 3 : 5}
               minTickGap={40}
               interval="preserveStartEnd"
-              height={26}
+              height={X_AXIS_HEIGHT}
             />
             {ledger ? (
               <YAxis
@@ -756,9 +740,12 @@ export function AccountAmountChart({
                 domain={[min - room, max + room]}
                 axisLine={false}
                 tickLine={false}
-                width={bare ? 32 : 64}
+                width="auto"
+                tickSize={0}
+                tickMargin={12}
                 tickCount={3}
-                tick={<LedgerValueTick digits={scaleDigits} offset={bare ? 24 : 56} />}
+                tick={{ fill: "var(--muted)", fontSize: 11 }}
+                tickFormatter={formatLedgerValueTick}
               />
             ) : (
               <YAxis hide domain={[min - room, max + room]} />
@@ -797,9 +784,7 @@ export function AccountAmountChart({
                           <circle cx={props.cx} cy={props.cy} r={3.5} fill={stroke}
                             stroke="var(--hero-surface, var(--surface))" strokeWidth={1.5} />
                         </g>
-                      ) : (
-                        <g key={`dot-${props.index}`} />
-                      )
+                      ) : <g key={`dot-${props.index}`} />
                   : false
               }
               activeDot={ledger ? false : (props: { cx?: number; cy?: number; payload?: AccountChartPoint }) => (

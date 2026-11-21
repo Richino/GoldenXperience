@@ -806,25 +806,55 @@ html:is(.dark, :not(.dark)) body .nl-hero .nl-range-tabs .account-range-btn::aft
   pointer-events: none;
 }
 
-.account-chart-scrubber .account-chart-active-label {
-  min-width: 150px;
-  font-variant-numeric: tabular-nums;
-}
-
-.nl-home .nl-chart-card .account-chart-active-label {
+.account-chart-scrub-readout {
+  position: absolute;
+  top: 1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: max-content;
+  max-width: 260px;
+  height: 24px;
+  padding-inline: 9px;
   border: 1px solid var(--border-strong);
+  border-radius: 999px;
   background: var(--surface-raised);
-  color: var(--foreground);
-  box-shadow: 0 4px 12px rgb(0 0 0 / 16%);
-}
-
-.nl-home .nl-chart-card .account-chart-active-meta {
   color: var(--muted-strong);
-  opacity: 1;
+  font-size: 11px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
-.nl-home .nl-chart-card .account-chart-active-meta .is-up {
-  color: var(--chart-up);
+.account-chart-scrub-readout .metric-number {
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.account-chart-scrub-readout .account-chart-scrub-change.is-up {
+  color: var(--success);
+}
+
+.account-chart-scrub-readout .account-chart-scrub-change.is-down {
+  color: var(--danger);
+}
+
+.account-chart-scrub-readout .account-chart-scrub-change.is-flat {
+  color: var(--muted-strong);
+}
+
+.account-chart-scrub-readout > span + span {
+  padding-inline-start: 7px;
+  border-inline-start: 1px solid var(--border-strong);
+}
+
+.account-chart-scrub-readout > :last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 html:is(.dark, :not(.dark)) body .nl-chart-card .account-chart {
@@ -2435,7 +2465,7 @@ html:is(.dark, :not(.dark)) body .nl-tr-bell {
 
 .nl-tr-line-stroke {
   fill: none;
-  stroke-width: 2.5;
+  stroke-width: 1.25;
   stroke-linejoin: round;
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
@@ -12592,6 +12622,144 @@ html:is(.dark, :not(.dark)) body .signals-pair-sheet .signals-pair-trend [data-t
 html:is(.dark, :not(.dark)) body .signals-pair-sheet .signals-pair-trend .nl-trend-qualifier {
   color: var(--muted);
   font-weight: 500;
+}
+
+/* Phone sheet: inset grouped list. Each trend group is one rounded card with
+   hairlines between its rows, its label sitting above it. Markup is one
+   <div> per row (the group label rides in the first row's div), so the card
+   is drawn on the row buttons: top corners on a group's first row, bottom
+   corners on the row before the next group (or the last row). */
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search {
+  min-height: 46px;
+  margin-bottom: 4px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface-raised);
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-pair-sheet > .mt-2 {
+  gap: 0;
+  /* Room under the last card so it never meets the sheet's edge. */
+  padding-bottom: 28px;
+  /* A thin, quiet scrollbar instead of the boxed default with arrows. */
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--foreground) 18%, transparent) transparent;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-pair-sheet > .mt-2::-webkit-scrollbar {
+  width: 4px;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-pair-sheet > .mt-2::-webkit-scrollbar-button {
+  display: none;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-pair-sheet > .mt-2::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--foreground) 18%, transparent);
+}
+
+/* Flags: two coins overlapping side by side, ringed in the card's colour,
+   instead of a diagonal stack with a dark ring. Inline sizes come from
+   PairAvatar, hence the !important. */
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-result > div:first-child {
+  --pair-ring: var(--surface-raised);
+  width: 46px !important;
+  height: 28px !important;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-result > div:first-child img {
+  box-shadow: 0 0 0 2px var(--pair-ring) !important;
+  /* A hairline edge so white-heavy flags (Japan, UK) stay round on light cards. */
+  outline: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
+  outline-offset: -1px;
+  top: 2px !important;
+  bottom: auto !important;
+  width: 26px !important;
+  height: 26px !important;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-result > div:first-child img:first-child {
+  left: 0 !important;
+  z-index: 1;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-result > div:first-child img:last-child {
+  left: 18px !important;
+  right: auto !important;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-result.is-active > div:first-child {
+  --pair-ring: color-mix(in srgb, var(--accent-fill) 16%, var(--surface-raised));
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-pair-group {
+  padding: 20px 6px 8px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-result {
+  gap: 12px;
+  min-height: 62px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface-raised);
+  box-shadow: none;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet :is(.mt-2) > div:first-child > .signals-search-result,
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet :is(.mt-2) > div:has(> .signals-pair-group) > .signals-search-result {
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet :is(.mt-2) > div:last-child > .signals-search-result,
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet :is(.mt-2) > div:has(+ div > .signals-pair-group) > .signals-search-result {
+  border-bottom-left-radius: 16px;
+  border-bottom-right-radius: 16px;
+}
+
+/* Hairline starts after the flags, inside the card. */
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet :is(.mt-2) > div + div > .signals-search-result::before {
+  top: 0;
+  right: 14px;
+  left: 72px;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-result > span:first-of-type > span:first-child {
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-result:active {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--surface-raised));
+}
+
+/* Current pair: a soft lime wash and a lime tick; no ring. */
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-result.is-active {
+  /* An older rule rounds the lit row on its own; keep it flush in its card
+     (the group-corner rules above still round a first or last row). */
+  border-radius: 0;
+  background: color-mix(in srgb, var(--accent-fill) 16%, var(--surface-raised));
+  box-shadow: none;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-result.is-active::after {
+  content: none;
+}
+
+html:is(.dark, :not(.dark)) body .signals-pair-mobile-sheet .signals-search-current {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent-fill);
+  color: #0b0c0a;
 }
 
 /* ============================================== OPEN POSITIONS: CLOSE ALL */

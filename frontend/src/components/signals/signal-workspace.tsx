@@ -101,7 +101,8 @@ import {
 } from "@/lib/instruments/catalog";
 import { useMarketStream } from "@/lib/market-stream/use-market-stream";
 import { VolumeProfileQuoteBuffer, type LiveVolumeProfile } from "@/lib/volume-profile";
-import { useChartTradePL } from "@/lib/market-stream/use-chart-trade-pl";
+import { useChartTradePL, usePendingExitPL } from "@/lib/market-stream/use-chart-trade-pl";
+import { TradeSheetSummary } from "@/components/signals/trade-sheet-summary";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { getMarketCondition } from "@/lib/strategy/session";
 import { isStrategyInstrument } from "@/lib/strategy/strategy-service";
@@ -2749,6 +2750,8 @@ export function SignalWorkspace({
   // Phone: the trade controls sheet, opened from the trade pill on the chart.
   const [tradeSheetOpen, setTradeSheetOpen] = useState(false);
   const [pendingEntryDialogOpen, setPendingEntryDialogOpen] = useState(false);
+  // Opens the order form already editing (from the level editor's link).
+  const [entryFormOnOpen, setEntryFormOnOpen] = useState(false);
   // The News ticket's unsaved settings, drawn on the chart as DRAFT zones.
   const [newsDraft, setNewsDraft] = useState<NewsDraft | null>(null);
   const [swingZones, setSwingZones] = useState<SwingZone[]>([]);
@@ -2797,7 +2800,28 @@ export function SignalWorkspace({
 
   function showPendingEntryDialog(entry: PendingManualEntry | null) {
     setSelectedPendingEntry(entry);
+    setEntryFormOnOpen(false);
     setPendingEntryDialogOpen(true);
+  }
+
+  /** The order form, straight into editing a waiting order's entry, size or expiry. */
+  function openEntryForm(entry: PendingManualEntry) {
+    setSelectedPendingEntry(entry);
+    setEntryFormOnOpen(true);
+    setPendingEntryDialogOpen(true);
+  }
+
+  /**
+   * A trade's controls. Phones have one trade sheet for everything (the pill
+   * and every level tag open it); desktop keeps its order panel.
+   */
+  function openTradeControls(entry: PendingManualEntry) {
+    if (chartDesktopViewport === true) {
+      showPendingEntryDialog(entry);
+      return;
+    }
+    setPickedPairTrade(entry.id);
+    setTradeSheetOpen(true);
   }
 
   function openNewTradeTicket() {
@@ -3522,6 +3546,12 @@ export function SignalWorkspace({
     activeManualTrade?.targetPrice ?? openPaperTrade?.target ?? null,
     activeManualTrade?.stopPrice ?? null,
   );
+  // A resting order already carries the units it will fill with, so its TP and
+  // SL can show money before it fills.
+  const pendingUnits = typeof pendingManualEntry?.metadata.units === "number" ? pendingManualEntry.metadata.units : null;
+  const formatPendingExitPL = usePendingExitPL(
+    instrument, pendingManualEntry?.direction ?? null, pendingManualEntry?.entryPrice ?? null, pendingUnits,
+  );
   const triggeredManualEntry =
     activeManualTrade && activeManualTrade.stopPrice !== null && activeManualTrade.targetPrice !== null
       ? activeManualTrade
@@ -3738,9 +3768,10 @@ export function SignalWorkspace({
       stop: levelDraft.stop,
       target: levelDraft.target,
       exitPrice: levelExitPrice,
-      formatExitPL: levelPending ? undefined : formatExitPL,
+      // A waiting order is priced from its own size as if it fills at entry.
+      formatExitPL: levelPending ? (price: number) => formatPendingExitPL(price) ?? "—" : formatExitPL,
     };
-  }, [formatExitPL, instrument, levelDraft, levelExitPrice, levelPending, levelTrade]);
+  }, [formatExitPL, formatPendingExitPL, instrument, levelDraft, levelExitPrice, levelPending, levelTrade]);
   const onLevelEditChange = useCallback((next: ChartLevelEdit) => {
     setLevelError(null);
     setLevelDraft((draft) => (draft ? { ...draft, stop: next.stop, target: next.target } : draft));
@@ -3907,7 +3938,7 @@ export function SignalWorkspace({
   );
   const pendingEntryReferenceLines = useMemo(() => {
     const openManager = (entry: PendingManualEntry) => {
-      openPendingEntryManager(entry);
+      openTradeControls(entry);
     };
     return pendingEntries.filter((entry) => entry.id === selectedPairTrade?.id).flatMap((entry) => {
       // A News setup's zones are drawn by newsOverlay for every state.
@@ -3931,11 +3962,14 @@ export function SignalWorkspace({
           lineWidth: 2 as const,
           onSelect: () => openManager(entry),
         }];
+        // The selected order's own size prices its levels.
+        const exitMoney = entry.id === pendingManualEntry?.id ? formatPendingExitPL : () => null;
         if (entry.stopPrice !== null && !editingLevels) {
+          const stopMoney = exitMoney(entry.stopPrice);
           lines.push({
             key: `pending-stop-${entry.id}`,
             price: entry.stopPrice,
-            label: `SL ${formatChartPrice(entry.stopPrice, instrument)} · -1R`,
+            label: `SL ${formatChartPrice(entry.stopPrice, instrument)}${stopMoney ? ` · ${stopMoney}` : ""} · -1R`,
             color: "#e74c3c",
             textColor: "#ffffff",
             dashed: true,
@@ -3946,10 +3980,11 @@ export function SignalWorkspace({
         if (entry.targetPrice !== null && !editingLevels) {
           const risk = entry.stopPrice === null ? 0 : Math.abs(entry.entryPrice - entry.stopPrice);
           const rewardR = risk > 0 ? Math.abs(entry.targetPrice - entry.entryPrice) / risk : null;
+          const targetMoney = exitMoney(entry.targetPrice);
           lines.push({
             key: `pending-target-${entry.id}`,
             price: entry.targetPrice,
-            label: `TP ${formatChartPrice(entry.targetPrice, instrument)}${rewardR === null ? "" : ` · +${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}R`}`,
+            label: `TP ${formatChartPrice(entry.targetPrice, instrument)}${targetMoney ? ` · ${targetMoney}` : ""}${rewardR === null ? "" : ` · +${rewardR.toFixed(rewardR >= 10 ? 0 : 1)}R`}`,
             color: "#00b377",
             textColor: "#ffffff",
             dashed: true,
@@ -3986,7 +4021,7 @@ export function SignalWorkspace({
       }
       return [];
     });
-  }, [instrument, levelDraftEntryId, pendingEntries, pendingEntryClock, selectedPairTrade?.id, activeTradePL, activeTradePLColor, activeTargetPL, activeStopPL]);
+  }, [instrument, levelDraftEntryId, pendingEntries, pendingEntryClock, selectedPairTrade?.id, activeTradePL, activeTradePLColor, activeTargetPL, activeStopPL, pendingManualEntry?.id, formatPendingExitPL]);
   const supportResistanceReferenceLines = useMemo(
     () => isChartIndicatorEnabled(enabledIndicators, "support-resistance")
       ? supportResistanceLines(chartIndicatorCandles, instrument)
@@ -4881,7 +4916,7 @@ export function SignalWorkspace({
       }
     : manualTradeMode === "close"
     ? {
-        label: tradeActionBusy ? "Closing…" : "Close Trade",
+        label: tradeActionBusy ? "Closing…" : "Close trade",
         className: " is-close",
         onClick: () => requestCloseTrade(activeManualTrade),
         disabled: tradeActionBusy,
@@ -4889,11 +4924,11 @@ export function SignalWorkspace({
       }
     : manualTradeMode === "cancel"
       ? {
-          label: tradeActionBusy ? "Cancelling…" : "Cancel Trade",
+          label: tradeActionBusy ? "Cancelling…" : "Cancel order",
           className: " is-cancel",
           onClick: () => setTradeConfirm({ mode: "cancel" }),
           disabled: tradeActionBusy,
-          title: "Cancel the pending trade",
+          title: "Cancel the waiting order",
         }
       : {
           label: "Trade",
@@ -4971,12 +5006,13 @@ export function SignalWorkspace({
           the first card in the chart's side column (see nl-chart-side). */}
       {wideChart ? null : <PlanAnalyzeSheet state={planAnalyze} instrument={instrument} price={quote ? (quote.bid + quote.ask) / 2 : null} />}
         {pendingEntryDialogOpen ? <PendingEntryDialog
-          key={`${selectedPendingEntry?.id ?? "new-pending-entry"}:${entryComposerRevision}`}
+          key={`${selectedPendingEntry?.id ?? "new-pending-entry"}:${entryComposerRevision}:${entryFormOnOpen ? "form" : "view"}`}
           open={tradeConfirm === null}
           instrument={instrument}
           bid={quote?.bid ?? null}
           ask={quote?.ask ?? null}
           selectedEntry={selectedPendingEntry}
+          startEditing={entryFormOnOpen}
           onRequestCloseTrade={replayActive || tradeActionBusy ? undefined : requestCloseTrade}
           initialProposal={entryDraftProposal ?? initialManualProposal}
           onClose={() => { setPendingEntryDialogOpen(false); setNewsDraft(null); }}
@@ -5189,7 +5225,7 @@ export function SignalWorkspace({
               >
                 {chipDirection ? <>
                   <span className={chipDirection === "long" ? "is-long" : "is-short"}>{chipDirection === "long" ? "Long" : "Short"}</span>
-                  <span>{chipStatus}</span>
+                  <span className={`nl-mtrade-chip-status is-${chipStatus.toLowerCase()}`}>{chipStatus}</span>
                   {pairTrades.length > 1 ? <span className="nl-mtrade-chip-count">{pairTrades.length} trades</span> : null}
                 </> : <><span>Active trades</span><span className="nl-mtrade-chip-count">{otherTradePairs.length} {otherTradePairs.length === 1 ? "pair" : "pairs"}</span></>}
                 <ChevronDown aria-hidden="true" />
@@ -5212,7 +5248,10 @@ export function SignalWorkspace({
             // Moving SL / TP: the lines are dragged on the chart above; this
             // is the same draft panel as the desktop Trade health card.
             <div className="gx-mobile-analyze-section nl-mlevels" ref={reserveMobileLevelEditor}>
-              <ChartLevelEditor levels={healthLevels} signal={levelSignal} />
+              <ChartLevelEditor levels={healthLevels} signal={levelSignal} onMoreOptions={levelPending && levelTrade ? () => {
+                healthLevels.onCancel();
+                openEntryForm(levelTrade);
+              } : undefined} />
             </div>
           ) : mobileTradeActionReady ? (
             // No bar under the chart: the chart runs to the tab bar, New trade
@@ -5231,7 +5270,9 @@ export function SignalWorkspace({
                 lockPageScroll={false}
                 className="nl-mtrade-sheet"
               >
-                {pairTrades.length ? (
+                {/* With one trade the sheet goes straight to it; the picker only
+                  appears when this pair has several. */}
+                {pairTrades.length > 1 ? (
                   <ul className="nl-pt-list nl-mtrade-current" aria-label={`Trades on ${activePair}`}>
                     {pairTrades.map((entry, index) => {
                       const filled = entry.status === "TRIGGERED";
@@ -5259,6 +5300,34 @@ export function SignalWorkspace({
                     })}
                   </ul>
                 ) : null}
+                {selectedPairTrade && !settingUpNewTrade ? (
+                  selectedPairTrade.metadata?.mode === "news" ? (
+                    <button type="button" className="nl-ts-news pressable" onClick={() => {
+                      setTradeSheetOpen(false);
+                      openPendingEntryManager(selectedPairTrade);
+                    }}>
+                      View news setup
+                      <ChevronRight aria-hidden="true" />
+                    </button>
+                  ) : (
+                    <TradeSheetSummary
+                      entry={selectedPairTrade}
+                      bid={quote?.bid ?? null}
+                      ask={quote?.ask ?? null}
+                      now={pendingEntryClock}
+                      exitMoney={selectedPairTrade.status === "TRIGGERED"
+                        ? (price) => { const label = formatExitPL(price); return label === "—" ? null : label; }
+                        : formatPendingExitPL}
+                      livePL={activeManualTrade ? activeTradePL : null}
+                      livePLColor={activeManualTrade ? activeTradePLColor : null}
+                      onAddStop={healthLevels && selectedPairTrade.stopPrice === null ? () => {
+                        setTradeSheetOpen(false);
+                        healthLevels.onStart();
+                        healthLevels.onToggle("stop");
+                      } : null}
+                    />
+                  )
+                ) : null}
                 <div className="nl-mtrade-sheet-actions" role="group" aria-label="Trade controls">
                   {healthLevels ? (
                     <button
@@ -5268,10 +5337,10 @@ export function SignalWorkspace({
                         setTradeSheetOpen(false);
                         healthLevels.onStart();
                       }}
-                      aria-label="Adjust stop loss and take profit"
+                      aria-label="Edit stop loss and take profit"
                     >
                       <MoveVertical aria-hidden="true" />
-                      Edit levels
+                      Edit
                     </button>
                   ) : null}
                   {manualTradeMode !== "analyze" || newsOrderInFlight ? (
@@ -5294,23 +5363,38 @@ export function SignalWorkspace({
                 {otherTradePairs.length > 0 ? (
                   <section className="nl-mtrade-other" aria-label="Active trades on other pairs">
                     {chipDirection ? <h3>Other pairs</h3> : null}
-                    <ul className="nl-pt-list">
-                      {otherTradePairs.map(([pair, activity]) => (
-                        <li key={pair}>
-                          <button type="button" className="nl-pt-row pressable" onClick={() => {
-                            setTradeSheetOpen(false);
-                            selectSearchResult({ instrument: pair });
-                          }}>
-                            <span className="nl-pt-main">
-                              <span className="nl-pt-name">{pair.replace("_", "/")}
-                                {activity.open ? <span className="nl-pt-status is-open">Open</span> : null}
-                                {activity.pending ? <span className="nl-pt-status is-pending">Pending</span> : null}
+                    <ul className="nl-pt-list nl-mtrade-pairs">
+                      {otherTradePairs.map(([pair, activity]) => {
+                        // This pair's own orders and filled trades, open ones first.
+                        const trades = allPendingEntries
+                          .filter((entry) => entry.instrument === pair && (entry.status === "PENDING" || entry.status === "TRIGGERING" || (entry.status === "TRIGGERED" && entry.paperTradeStatus === "open")))
+                          .sort((a, b) => Number(b.status === "TRIGGERED") - Number(a.status === "TRIGGERED"));
+                        const lead = trades[0];
+                        const detail = lead
+                          ? `${lead.direction === "long" ? "Long" : "Short"} ${lead.status === "TRIGGERED" ? "filled at" : "at"} ${formatChartPrice(lead.status === "TRIGGERED" ? lead.triggerPrice ?? lead.entryPrice : lead.entryPrice, pair as MajorInstrument)}`
+                          : "Strategy trade";
+                        return (
+                          <li key={pair}>
+                            <button type="button" className="nl-mtrade-pair pressable" onClick={() => {
+                              setTradeSheetOpen(false);
+                              selectSearchResult({ instrument: pair });
+                            }}>
+                              <PairAvatar instrument={pair as MajorInstrument} size={26} horizontal />
+                              <span className="nl-mtrade-pair-copy">
+                                <b>{pair.replace("_", "/")}</b>
+                                <span className={lead ? (lead.direction === "long" ? "is-long" : "is-short") : undefined}>
+                                  {detail}{trades.length > 1 ? ` · +${trades.length - 1} more` : ""}
+                                </span>
                               </span>
-                            </span>
-                            <ChevronRight className="nl-pt-check" aria-hidden="true" />
-                          </button>
-                        </li>
-                      ))}
+                              <span className="nl-mtrade-pair-status">
+                                {activity.open ? <span className="nl-ts-badge is-open"><i aria-hidden="true" />Open</span> : null}
+                                {activity.pending ? <span className="nl-ts-badge is-pending"><i aria-hidden="true" />Pending</span> : null}
+                              </span>
+                              <ChevronRight className="nl-mtrade-pair-go" aria-hidden="true" />
+                            </button>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </section>
                 ) : null}
@@ -5548,12 +5632,13 @@ export function SignalWorkspace({
         onBusyChange={setSwingAnalysisBusy} onRequestComplete={completeSwingRequest} /> : null}
 
       {pendingEntryDialogOpen ? <PendingEntryDialog
-        key={`${selectedPendingEntry?.id ?? "new-pending-entry"}:${entryComposerRevision}`}
+        key={`${selectedPendingEntry?.id ?? "new-pending-entry"}:${entryComposerRevision}:${entryFormOnOpen ? "form" : "view"}`}
         open={tradeConfirm === null}
         instrument={instrument}
         bid={quote?.bid ?? null}
         ask={quote?.ask ?? null}
         selectedEntry={selectedPendingEntry}
+        startEditing={entryFormOnOpen}
         onRequestCloseTrade={replayActive || tradeActionBusy ? undefined : requestCloseTrade}
         initialProposal={entryDraftProposal ?? initialManualProposal}
         onClose={() => { setPendingEntryDialogOpen(false); setNewsDraft(null); }}

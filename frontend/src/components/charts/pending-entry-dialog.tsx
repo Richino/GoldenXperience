@@ -86,8 +86,11 @@ export function PendingEntryDialog({
   onClose,
   onChanged,
   onRequestCloseTrade,
+  startEditing = false,
 }: {
   open: boolean;
+  /** Open a waiting order straight into its edit form. */
+  startEditing?: boolean;
   layout?: "dialog" | "panel";
   instrument: string;
   bid: number | null;
@@ -163,7 +166,7 @@ export function PendingEntryDialog({
       delete backdrop.dataset.keyboardOpen;
     };
   }, [isPanel, open]);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(Boolean(startEditing && selectedEntry?.status === "PENDING"));
   const [entryMode, setEntryMode] = useState<"single" | "oco">("single");
   // A blank entry has no direction until the user picks one, so a form that
   // lost its Analyze plan (e.g. a reload) can never submit a default LONG.
@@ -377,6 +380,12 @@ export function PendingEntryDialog({
   }
 
   function dismissCreateOrClose() {
+    // Opened straight into editing: backing out closes the form, never
+    // landing on the separate order details view.
+    if (selectedEntry && startEditing) {
+      onClose();
+      return;
+    }
     if (selectedEntry) {
       setEditing(false);
       return;

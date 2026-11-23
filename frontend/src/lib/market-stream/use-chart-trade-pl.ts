@@ -6,6 +6,23 @@ import { currenciesOf } from "@/lib/instruments/catalog";
 import { chartTargetPL, chartTradePLColor } from "@/lib/market-stream/chart-trade-pl";
 import { useOpenPositionSnapshot } from "@/lib/market-stream/use-open-positions";
 
+/**
+ * What a resting order books at a level once it fills at its own entry price,
+ * from the units it was placed with. Returns null for a level it cannot price
+ * (no size yet, or no conversion for a non-account-currency pair).
+ */
+export function usePendingExitPL(instrument: string, direction: "long" | "short" | null, entryPrice: number | null, units: number | null) {
+  const sized = direction !== null && entryPrice !== null && units !== null && Number.isFinite(units) && units > 0;
+  const { currency, homeConversions } = useOpenPositionSnapshot(sized);
+  const conversion = homeConversions[currenciesOf(instrument).quote];
+  return useCallback((price: number | null) => {
+    if (!sized) return null;
+    const amount = chartTargetPL({ price: entryPrice, units: Math.abs(units) }, instrument, direction, currency, price, conversion);
+    const label = formatTradePL(amount, currency).slice("P/L ".length);
+    return label === "—" ? null : label;
+  }, [sized, entryPrice, units, instrument, direction, currency, conversion]);
+}
+
 /** Use the selected trade's reported P/L from the account snapshot. */
 export function useChartTradePL(brokerTradeId: string | null, instrument: string, direction: "long" | "short" | null, target: number | null, stop: number | null = null) {
   const { fills, currency, homeConversions } = useOpenPositionSnapshot(brokerTradeId !== null);

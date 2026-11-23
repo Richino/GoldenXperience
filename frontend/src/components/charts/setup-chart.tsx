@@ -842,12 +842,15 @@ function LevelEditOverlay({
             className={`setup-chart-level-edit-line is-${key}${chartLevelInvalid(edit, key) ? " is-invalid" : ""}`}
             onPointerDown={beginDrag(key)}
           >
-            <span
-              className="setup-chart-level-edit-handle metric-number"
-              title={amount === "—" ? "Estimated P/L unavailable" : "Estimated trade P/L if this level fills"}
-            >
+            {amount !== "—" ? (
+              <span className="setup-chart-level-edit-money metric-number" title="Estimated trade P/L if this level fills">
+                <b>{key === "stop" ? "SL" : "TP"}</b>
+                {amount}
+              </span>
+            ) : null}
+            <span className="setup-chart-level-edit-handle metric-number">
               <i aria-hidden="true" />
-              {`${key === "stop" ? "SL" : "TP"} ${amount}`}
+              {key === "stop" ? "SL" : "TP"}
             </span>
             <span className="setup-chart-price-label setup-chart-level-price setup-chart-level-edit-price">
               {formatChartPrice(price, edit.instrument)}
@@ -3294,7 +3297,8 @@ export function SetupChart({
             return (
               <span className="setup-chart-level-tag-text">
                 {parts.name ? <span className="setup-chart-level-tag-name">{parts.name}</span> : null}
-                {parts.price ? <span className="setup-chart-level-tag-price">{parts.price}</span> : null}
+                {/* On screen, the price axis already shows it; an off-screen level has no axis label. */}
+                {parts.price && tag.away ? <span className="setup-chart-level-tag-price">{parts.price}</span> : null}
                 {parts.detail ? <span className="setup-chart-level-tag-detail">{parts.detail}</span> : null}
                 {tag.away ? <span className="setup-chart-level-tag-detail">{`${tag.away.pips.toFixed(1)} p ${tag.away.direction}`}</span> : null}
               </span>

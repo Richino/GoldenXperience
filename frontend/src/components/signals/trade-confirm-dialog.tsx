@@ -44,7 +44,7 @@ export function TradeConfirmDialog({
           <div>
             <span>{pairLabel}</span>
             <h3 id="trade-confirm-title">
-              {activeMode === "cancel" ? "Cancel pending trade?" : "Close active trade?"}
+              {activeMode === "cancel" ? "Cancel this order?" : "Close this trade?"}
             </h3>
           </div>
         </header>
@@ -68,7 +68,7 @@ export function TradeConfirmDialog({
               })();
             }}
           >
-            {activeMode === "cancel" ? "Cancel Trade" : "Close Trade"}
+            {activeMode === "cancel" ? "Cancel order" : "Close trade"}
           </button>
         </footer>
       </section>

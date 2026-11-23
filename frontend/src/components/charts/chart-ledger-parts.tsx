@@ -391,7 +391,12 @@ export function ChartPendingLevelsCard({
 }
 
 /** The draft stop and target while their lines are being dragged on the chart. */
-export function ChartLevelEditor({ levels, signal }: { levels: ChartHealthLevels; signal: ChartPositionCardSignal }) {
+export function ChartLevelEditor({ levels, signal, onMoreOptions }: {
+  levels: ChartHealthLevels;
+  signal: ChartPositionCardSignal;
+  /** A waiting order: open the full form for its entry, size or expiry. */
+  onMoreOptions?: () => void;
+}) {
   const pip = pipSizeFor(signal.instrument);
   const long = signal.direction === "long";
   // R only means something while the stop is on the losing side of entry.
@@ -440,6 +445,11 @@ export function ChartLevelEditor({ levels, signal }: { levels: ChartHealthLevels
         </p>
       ) : null}
       {levels.error ? <p className="nl-clevels-error" role="alert">{levels.error}</p> : null}
+      {onMoreOptions ? (
+        <button type="button" className="nl-clevels-more pressable" onClick={onMoreOptions} disabled={levels.saving}>
+          Change entry, size or expiry
+        </button>
+      ) : null}
       <div className="nl-clevels-actions">
         {levels.stop !== null || levels.target !== null ? (
           <button type="button" className="nl-clevels-none pressable" onClick={levels.onClear}

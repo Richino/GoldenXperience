@@ -1,4 +1,4 @@
-import type { AccountBalanceHistoryPoint, AccountSummary, OpenPosition } from "@/types/forex";
+import type { AccountBalanceHistoryPoint, AccountSummary, HomeCurrencyConversion, OpenPosition } from "@/types/forex";
 import type { OpenPositionFill } from "@/lib/market-stream/use-open-positions";
 
 export type HomeFinancialSnapshot = {
@@ -7,6 +7,8 @@ export type HomeFinancialSnapshot = {
   history: AccountBalanceHistoryPoint[];
   checkedAt: string;
   lastTransactionID: string;
+  /** Quote-currency → account-currency rates, for marking non-USD pairs live. */
+  homeConversions?: Record<string, HomeCurrencyConversion>;
 };
 
 /** A transaction occurring during the history fetch belongs to the next frame. */

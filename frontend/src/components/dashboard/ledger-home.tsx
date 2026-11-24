@@ -464,6 +464,7 @@ export function LedgerPositions({
                     <span className="nl-wide-only">{now !== null ? ` · ${heldFor(position.openedAt, now)}` : ""}</span>
                     <span className="nl-narrow-only">{position.lots !== null ? ` · ${position.lots.toFixed(2)} lot` : ""}</span>
                   </SideChip>
+                  {position.stop === null ? <span className="nl-pos-nostop nl-narrow-only">No stop</span> : null}
                 </span>
                 <span className="nl-pos-prices metric-number">
                   <span className="nl-pos-entry">{position.entry === null ? "—" : formatChartPrice(position.entry, position.instrument)}</span>
@@ -478,13 +479,13 @@ export function LedgerPositions({
                     {position.markAt !== null ? <span className={`nl-track-mark ${rTone}`} style={{ left: `${position.markAt}%` }} /> : null}
                   </span>
                   <span className="nl-track-labels metric-number">
-                    <span className="is-down">{position.stop === null ? "No stop" : formatChartPrice(position.stop, position.instrument)}</span>
-                    <span className="nl-track-note">
-                      <span className="nl-wide-only">{position.progress ?? ""}</span>
-                      <span className="nl-narrow-only">
-                        {position.mark === null ? "" : formatChartPrice(position.mark, position.instrument)}
-                      </span>
+                    {/* No stop: the track starts at entry, so the left end is the entry price. */}
+                    <span className={position.stop === null ? "nl-track-start" : "is-down"}>
+                      {position.stop !== null
+                        ? formatChartPrice(position.stop, position.instrument)
+                        : position.entry !== null ? `Entry ${formatChartPrice(position.entry, position.instrument)}` : "No stop"}
                     </span>
+                    <span className="nl-track-note">{position.progress ?? ""}</span>
                     <span className="is-up">{position.target === null ? "No target" : formatChartPrice(position.target, position.instrument)}</span>
                   </span>
                 </span>
@@ -493,7 +494,14 @@ export function LedgerPositions({
                 <span className="nl-pos-pl metric-number">
                   <span className={tone(position.money)}>{position.money === null ? "—" : signedMoney(position.money, currency)}</span>
                   {position.spreadCost !== null ? (
-                    <small className="nl-pos-spread">Entry spread {signedMoney(-Math.abs(position.spreadCost), currency)}{position.spreadR !== null ? ` · ${signedR(position.spreadR)}` : ""}</small>
+                    <small
+                      className="nl-pos-spread"
+                      title={`Spread paid to open${position.spreadR !== null ? ` (${signedR(position.spreadR)})` : ""}`}
+                    >
+                      Spread {signedMoney(-Math.abs(position.spreadCost), currency)}
+                      {/* R only means "share of what you risked" when there's a real stop. */}
+                      {position.stop !== null && position.spreadR !== null ? ` · ${signedR(position.spreadR)}` : ""}
+                    </small>
                   ) : null}
                 </span>
               </Link>

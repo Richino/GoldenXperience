@@ -3582,10 +3582,16 @@ export function SignalWorkspace({
   const activeBrokerTradeId = activeManualTrade
     ? (typeof activeManualTrade.metadata.brokerTradeId === "string" ? activeManualTrade.metadata.brokerTradeId : null)
     : openPaperTrade?.brokerTradeId ?? null;
+  const activeDirection = activeManualTrade?.direction ?? openPaperTrade?.direction ?? null;
+  // The live price this trade would close at, from the chart's own tick stream.
+  const activeExitPrice = quote && quote.instrument === instrument && activeDirection
+    ? (activeDirection === "long" ? quote.bid : quote.ask)
+    : null;
   const { label: activeTradePL, color: activeTradePLColor, targetLabel: activeTargetPL, stopAmountLabel: activeStopPL, formatExitPL } = useChartTradePL(
-    activeBrokerTradeId, instrument, activeManualTrade?.direction ?? openPaperTrade?.direction ?? null,
+    activeBrokerTradeId, instrument, activeDirection,
     activeManualTrade?.targetPrice ?? openPaperTrade?.target ?? null,
     activeManualTrade?.stopPrice ?? null,
+    activeExitPrice,
   );
   // A resting order already carries the units it will fill with, so its TP and
   // SL can show money before it fills.

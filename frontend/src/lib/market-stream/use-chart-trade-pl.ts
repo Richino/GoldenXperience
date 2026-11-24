@@ -23,14 +23,22 @@ export function usePendingExitPL(instrument: string, direction: "long" | "short"
   }, [sized, entryPrice, units, instrument, direction, currency, conversion]);
 }
 
-/** Use the selected trade's reported P/L from the account snapshot. */
-export function useChartTradePL(brokerTradeId: string | null, instrument: string, direction: "long" | "short" | null, target: number | null, stop: number | null = null) {
+/**
+ * The selected trade's P/L. Fill price and size come from the account
+ * snapshot (polled every 15s); the money itself is marked on every tick from
+ * `exitPrice`, the chart's live price the trade would close at (a long sells
+ * on the bid, a short buys on the ask). Only the pair on screen streams, so
+ * only the trade being looked at updates live. Without a live price it falls
+ * back to the broker's own figure from the last snapshot.
+ */
+export function useChartTradePL(brokerTradeId: string | null, instrument: string, direction: "long" | "short" | null, target: number | null, stop: number | null = null, exitPrice: number | null = null) {
   const { fills, currency, homeConversions } = useOpenPositionSnapshot(brokerTradeId !== null);
 
   // Never use the instrument alias: several fills can share a pair.
   const fill = brokerTradeId ? fills[`broker:${brokerTradeId}`] : undefined;
-  const amount = fill && Number.isFinite(fill.unrealizedPL) ? fill.unrealizedPL : null;
   const conversion = homeConversions[currenciesOf(instrument).quote];
+  const live = chartTargetPL(fill, instrument, direction, currency, exitPrice, conversion);
+  const amount = live !== null ? live : fill && Number.isFinite(fill.unrealizedPL) ? fill.unrealizedPL : null;
   const formatExitPL = useCallback((price: number | null) => (
     formatTradePL(chartTargetPL(fill, instrument, direction, currency, price, conversion), currency).slice("P/L ".length)
   ), [fill, instrument, direction, currency, conversion]);

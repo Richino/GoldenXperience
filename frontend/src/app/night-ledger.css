@@ -13689,3 +13689,52 @@ html.dark body .nl-pending .nl-pending-cancel:not(:disabled) {
 @media (prefers-reduced-motion: reduce) {
   .nl-tr-toolbar.nl-tr-toolbar-filters { transition: none; }
 }
+
+
+/* Home open position, phones: pair + side (and a "No stop" chip) on top with
+   the money; entry → now under it with R; then the track with its progress in
+   the middle. The entry spread sits small under the money. */
+.nl-pos-nostop { display: none; }
+.nl-track-start { color: var(--muted); }
+@media (max-width: 1023px) {
+  html:is(.dark, :not(.dark)) body .nl-positions .nl-pos {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "pair pl"
+      "prices r"
+      "track track";
+    align-items: center;
+    gap: 6px 14px;
+    padding: 14px 16px 12px;
+  }
+  .nl-positions .nl-pos-pair { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .nl-positions .nl-pos-pair b { font-size: 18px; }
+  .nl-positions .nl-pos-nostop {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 7px;
+    border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
+    border-radius: 999px;
+    color: var(--danger);
+    font-size: 10.5px;
+    font-weight: 650;
+  }
+  html:is(.dark, :not(.dark)) body .nl-positions .nl-pos-prices {
+    grid-area: prices;
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .nl-positions .nl-pos-prices > :last-child { color: var(--foreground); font-weight: 600; }
+  .nl-positions .nl-pos-prices > :last-child::before { content: "→ "; color: var(--muted); font-weight: 400; }
+  .nl-positions .nl-pos-pl { font-size: 20px; font-weight: 750; letter-spacing: -0.01em; }
+  /* What OANDA charged to get in, quietly under the money. */
+  .nl-positions .nl-pos-spread { display: block; font-size: 10.5px; }
+  .nl-positions .nl-pos-r { text-align: right; font-size: 12px; font-weight: 650; }
+  .nl-positions .nl-pos-track { margin-top: 8px; gap: 4px; }
+  .nl-positions .nl-track-note { color: var(--muted-strong); font-weight: 600; }
+}

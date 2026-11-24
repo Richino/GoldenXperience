@@ -33,7 +33,9 @@ import { useLiveQuotes } from "@/lib/market-stream/use-live-quotes";
 import type { OpenPositionFill } from "@/lib/market-stream/use-open-positions";
 import { snapshotFills, type HomeFinancialSnapshot } from "@/lib/home/financial-snapshot";
 import { readHomeCache, writeHomeCache } from "@/lib/home/home-cache";
-import type { AccountBalanceHistoryPoint, AccountSummary, JournalTrade, MajorInstrument } from "@/types/forex";
+import type { AccountBalanceHistoryPoint, AccountSummary, HomeCurrencyConversion, JournalTrade, MajorInstrument } from "@/types/forex";
+import { chartTargetPL } from "@/lib/market-stream/chart-trade-pl";
+import { currenciesOf } from "@/lib/instruments/catalog";
 import type { PendingManualEntry } from "@/types/pending-entry";
 
 export type DashboardWatchRow = {
@@ -168,7 +170,7 @@ async function dashboardData<T>(path: string, timeoutMs = 12_000): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-/** Broker rows use the financial frame's pricing; paper rows may use ticks. */
+/** Every row marks on the live tick when the stream has the pair, else the broker's last price. */
 function openTradeQuote(
   trade: Trade,
   quotes: Record<string, { bid: number; ask: number }>,
@@ -176,7 +178,7 @@ function openTradeQuote(
   watchlist: DashboardWatchRow[],
 ) {
   return (
-    (trade.brokerTradeId ? resolveOpenTradeQuote(undefined, fill) : resolveOpenTradeQuote(quotes[trade.instrument], fill)) ??
+    resolveOpenTradeQuote(quotes[trade.instrument], fill) ??
     resolveOpenTradeQuote(watchlist.find((row) => row.instrument === trade.instrument))
   );
 }
@@ -208,16 +210,33 @@ function liveOpenProgress(
   });
 }
 
+/** What a broker trade is worth on the latest streamed tick: OANDA's fill and
+ *  size, marked at the price it would close at (a long sells on the bid, a
+ *  short buys on the ask). Null when the pair isn't streaming. */
+function liveBrokerMoney(
+  trade: Trade,
+  quotes: Record<string, { bid: number; ask: number }>,
+  fill: OpenPositionFill | undefined,
+  live: LiveMarking,
+) {
+  const quote = quotes[trade.instrument];
+  if (!fill || !quote || !live.currency) return null;
+  const exit = trade.direction === "long" ? quote.bid : quote.ask;
+  return chartTargetPL(fill, trade.instrument, trade.direction, live.currency, exit, live.conversions[currenciesOf(trade.instrument).quote]);
+}
+type LiveMarking = { currency: string | null; conversions: Record<string, HomeCurrencyConversion> };
+
 function markedOpenMoney(
   trade: Trade,
   quotes: Record<string, { bid: number; ask: number }>,
   fills: Record<string, OpenPositionFill>,
   watchlist: DashboardWatchRow[],
+  marking: LiveMarking,
 ) {
   const fill = trade.brokerTradeId
     ? fills[`broker:${trade.brokerTradeId}`]
     : undefined;
-  if (trade.brokerTradeId) return fill?.unrealizedPL ?? null;
+  if (trade.brokerTradeId) return liveBrokerMoney(trade, quotes, fill, marking) ?? fill?.unrealizedPL ?? null;
   const live = liveOpenProgress(trade, quotes, fills, watchlist);
   // OANDA already reports this account-currency amount. A stored paper result
   // is only a fallback for a non-broker practice row, never the live value.
@@ -249,8 +268,9 @@ export function DashboardView({
   const [financial, setFinancial] = useState(() => ({
     account: verifiedAccountSummary({ data: initialAccount }), history: initialAccountHistory,
     fills: {} as Record<string, OpenPositionFill>, checkedAt: null as string | null,
+    conversions: {} as Record<string, HomeCurrencyConversion>,
   }));
-  const { account, history: accountHistory, fills } = financial;
+  const { account: snapshotAccount, history: accountHistory, fills } = financial;
   const [accountError, setAccountError] = useState<string | null>(() => initialLoading || verifiedAccountSummary({ data: initialAccount }) ? null : ACCOUNT_UNAVAILABLE_MESSAGE);
   const [journalTrades, setJournalTrades] = useState(initialJournal.trades);
   const [journalSummary, setJournalSummary] = useState(initialJournal.summary ?? null);
@@ -279,7 +299,7 @@ export function DashboardView({
       if (!verified) return;
       const cachedFills = snapshotFills(cache.account);
       /* eslint-disable react-hooks/set-state-in-effect -- applied before the first paint on purpose */
-      setFinancial({ account: verified, history: cache.account.history, fills: cachedFills, checkedAt: cache.account.checkedAt });
+      setFinancial({ account: verified, history: cache.account.history, fills: cachedFills, checkedAt: cache.account.checkedAt, conversions: cache.account.homeConversions ?? {} });
       setJournalTrades(cache.journal.trades);
       setJournalSummary(cache.journal.summary ?? null);
       setOverviewOpen(cache.openTrades);
@@ -303,7 +323,7 @@ export function DashboardView({
   const [closeAllOpen, setCloseAllOpen] = useState(false);
   const [closingAll, setClosingAll] = useState(false);
   const [closeAllError, setCloseAllError] = useState<string | null>(null);
-  // Streamed prices are used only for paper estimates and currency conversions.
+  // Streamed prices mark every open trade live (broker trades on OANDA's fill).
   const quotes = useLiveQuotes();
   const overviewOpenIds = new Set(overviewOpen.map((trade) => trade.id));
   // Manual trades live in the journal, not the strategy overview, so their open
@@ -335,12 +355,27 @@ export function DashboardView({
       // broker position's actual unrealized P&L when a fill exists.
       nominalRiskAmount:
         trade.nominalRiskAmount ??
-        (account && account.balance > 0 ? Number((account.balance * 0.01).toFixed(2)) : null),
+        (snapshotAccount && snapshotAccount.balance > 0 ? Number((snapshotAccount.balance * 0.01).toFixed(2)) : null),
       brokerTradeId: trade.brokerTradeId ?? null,
     }));
   const openTrades = [...overviewOpen, ...manualOpen].filter(trade =>
     !financial.checkedAt || !trade.brokerTradeId || Boolean(fills[`broker:${trade.brokerTradeId}`]),
   );
+
+  // Live: each broker trade is re-marked on every streamed tick, and the
+  // headline balance and today's P/L move by the same amount, so the page's
+  // figures still add up between the 5-second account snapshots.
+  const liveMarking: LiveMarking = { currency: snapshotAccount?.currency ?? null, conversions: financial.conversions };
+  let liveDelta = 0;
+  for (const trade of openTrades) {
+    if (!trade.brokerTradeId) continue;
+    const fill = fills[`broker:${trade.brokerTradeId}`];
+    const now = liveBrokerMoney(trade, quotes, fill, liveMarking);
+    if (now !== null && fill && Number.isFinite(fill.unrealizedPL)) liveDelta += now - fill.unrealizedPL;
+  }
+  const account = snapshotAccount && liveDelta !== 0
+    ? { ...snapshotAccount, nav: snapshotAccount.nav + liveDelta, unrealizedPL: snapshotAccount.unrealizedPL + liveDelta }
+    : snapshotAccount;
 
   // Close all acts on your own (manual) trades; strategy trades are run by the bot.
   const manualOpenIds = new Set(manualOpen.map((trade) => trade.id));
@@ -350,7 +385,7 @@ export function DashboardView({
       id: trade.id,
       instrument: trade.instrument,
       direction: trade.direction,
-      money: markedOpenMoney(trade, quotes, fills, watchlist),
+      money: markedOpenMoney(trade, quotes, fills, watchlist, liveMarking),
     }));
 
   // Account cash never includes the separate paper-only simulation estimates.
@@ -403,7 +438,7 @@ export function DashboardView({
       const verified = verifiedAccountSummary(payload);
       if (!verified) throw new Error(ACCOUNT_UNAVAILABLE_MESSAGE);
       const nextFills = snapshotFills(payload);
-      setFinancial({ account: verified, history: payload.history, fills: nextFills, checkedAt: payload.checkedAt });
+      setFinancial({ account: verified, history: payload.history, fills: nextFills, checkedAt: payload.checkedAt, conversions: payload.homeConversions ?? {} });
       saveHome({ account: payload });
       setAccountError(null);
       finishLoad("account");
@@ -569,7 +604,7 @@ export function DashboardView({
   // manual and strategy trades), so a row can show what the fill cost.
   const entrySpreadById = new Map(journalTrades.map((row) => [row.id, row.oandaEntryHalfSpreadCost ?? null]));
   const ledgerPositions: LedgerPosition[] = openTrades.slice(0, 6).map((trade) => {
-    const shown = markedOpenMoney(trade, quotes, fills, watchlist);
+    const shown = markedOpenMoney(trade, quotes, fills, watchlist, liveMarking);
     const live = liveOpenProgress(trade, quotes, fills, watchlist);
     const fill = trade.brokerTradeId ? fills[`broker:${trade.brokerTradeId}`] : undefined;
     const quote = openTradeQuote(trade, quotes, fill, watchlist);
@@ -587,9 +622,12 @@ export function DashboardView({
     const { sl, tp } = currentTradeLevels(trade);
     // Position on the stop → target line, 0–100%. For a short the span is
     // negative and the signs cancel, so one formula serves both sides.
-    const span = sl != null && tp != null ? tp - sl : 0;
+    // The track runs stop → target; with no stop it runs entry → target, so a
+    // stopless trade still shows how far it has come.
+    const trackStart = sl ?? trade.entry ?? null;
+    const span = trackStart != null && tp != null ? tp - trackStart : 0;
     const trackAt = (price: number | null | undefined) =>
-      price == null || span === 0 || sl == null ? null : Math.min(100, Math.max(0, ((price - sl) / span) * 100));
+      price == null || span === 0 || trackStart == null ? null : Math.min(100, Math.max(0, ((price - trackStart) / span) * 100));
     // Progress from entry toward the target, or how far price sits against it.
     let progress: string | null = null;
     if (mark !== null && trade.entry != null && tp != null && tp !== trade.entry) {

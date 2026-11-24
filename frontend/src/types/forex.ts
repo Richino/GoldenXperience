@@ -127,6 +127,8 @@ export interface PaperChartTrade {
   closedAt: string | null;
   exitReason: string | null;
   batchNumber: number | null;
+  /** Closed trades: account-currency result OANDA booked (null when unknown or paper only). */
+  paperPl?: number | null;
 }
 
 export interface HomeCurrencyConversion {
@@ -204,6 +206,10 @@ export interface JournalTrade {
   signalPrice?: number | null;
   /** Actual OANDA market fill when practice execution supplied it. */
   actualFillPrice?: number | null;
+  /** Overnight financing OANDA booked on this trade (account currency); kept apart from paperPl. */
+  brokerFinancing?: number | null;
+  /** Size in units: OANDA's opening size when known, else the size the order was placed with. */
+  units?: number | null;
   /** Exact OANDA trade id, used to join an open row to broker P&L. */
   brokerTradeId?: string | null;
   /** OANDA ORDER_FILL values, in the account home currency (not quote-time estimates). */

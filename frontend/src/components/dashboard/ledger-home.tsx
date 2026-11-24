@@ -12,7 +12,7 @@
 
 import Link from "next/link";
 import { useLayoutEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { ArrowUpRight, Check } from "lucide-react";
+import { ArrowUpRight, Check, ChevronRight } from "lucide-react";
 import {
   AccountAmountChart,
   AccountRangeControl,
@@ -741,7 +741,10 @@ export function LedgerPending({
               >
                 <b>{displayNameFor(entry.instrument)}</b>
                 <SideChip direction={entry.direction}>{ORDER_TYPE_LABEL[entry.entryOrderType]}{pendingSizeLabel(entry) ? ` · ${pendingSizeLabel(entry)}` : ""}</SideChip>
-                <span className="nl-pending-open" aria-hidden="true">Open chart<ArrowUpRight /></span>
+                <span className="nl-pending-status" aria-hidden="true">
+                  <i />{note ?? pendingStatusLabel(entry.status)}
+                  <ChevronRight className="nl-pending-go" />
+                </span>
               </Link>
               <dl className="nl-levels">
                 <div>
@@ -758,7 +761,6 @@ export function LedgerPending({
                 </div>
               </dl>
               <div className="nl-pending-foot">
-                <span>{note ?? pendingStatusLabel(entry.status)}</span>
                 <span className="nl-pending-actions">
                   {!isNews ? <button
                     type="button"
@@ -771,7 +773,7 @@ export function LedgerPending({
                   </button> : null}
                   <button
                     type="button"
-                    className="nl-ghost-btn pressable"
+                    className="nl-ghost-btn nl-pending-cancel pressable"
                     disabled={!canCancel || cancellingId === entry.id}
                     onClick={() => onCancel(entry)}
                     aria-label={`Cancel waiting order for ${displayNameFor(entry.instrument)}`}

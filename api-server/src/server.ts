@@ -32,7 +32,7 @@ import { historyAtSnapshot, snapshotFills } from "../../frontend/src/lib/home/fi
 import { getAllCalendarEvents, getEconomicCalendar } from "../../frontend/src/lib/calendar/forex-factory.js";
 import { ingestCalendarEvents, nightlyNewsRetagIfDue } from "./news-tagging.js";
 import { newsPredictionsSnapshot, runNewsPredictionJournal } from "./news-predictions.js";
-import { isKnownInstrument } from "../../frontend/src/lib/instruments/catalog.js";
+import { isKnownInstrument, pipSizeFor } from "../../frontend/src/lib/instruments/catalog.js";
 import {
   getAccountSummary,
   getAccountSnapshot,
@@ -86,6 +86,7 @@ import {
   updateActiveManualTradeLevels,
   updatePendingEntryLevels,
   manualPositionSize,
+  calculateManualTradeRisk,
   parseSizeChoice,
   createPendingManualEntry,
   editPendingManualEntry,
@@ -801,15 +802,22 @@ async function handleApi(request: IncomingMessage, response: ServerResponse) {
     if (url.pathname === "/api/pending-entries/size" && request.method === "GET") {
       const instrument = (url.searchParams.get("instrument") ?? "").toUpperCase();
       const entry = Number(url.searchParams.get("entry"));
-      const stop = Number(url.searchParams.get("stop"));
-      if (!isKnownInstrument(instrument) || !(entry > 0) || !(stop > 0) || entry === stop) {
+      const stopParam = url.searchParams.get("stop");
+      const direction = url.searchParams.get("direction");
+      // No stop: size the way the order will be, off the H1 ATR stand-in for the
+      // given side, and say how far that stand-in is so the ticket can show it.
+      const noStop = stopParam === null && (direction === "long" || direction === "short");
+      const typedStop = Number(stopParam);
+      if (!isKnownInstrument(instrument) || !(entry > 0) || (!noStop && (!(typedStop > 0) || entry === typedStop))) {
         return json(request, response, { error: "Choose a pair, an entry and a stop." }, 400);
       }
       try {
         // The ticket's lots or % of account; without either, the Settings risk %.
         const lots = url.searchParams.get("lots"), percent = url.searchParams.get("percent");
         const choice = parseSizeChoice(lots !== null ? { mode: "lots", lots } : percent !== null ? { mode: "percent", percent } : null);
-        return json(request, response, await manualPositionSize(user.id, instrument, entry, stop, choice));
+        const stop = noStop ? (await calculateManualTradeRisk(instrument, direction, entry)).stop : typedStop;
+        const sized = await manualPositionSize(user.id, instrument, entry, stop, choice);
+        return json(request, response, { ...sized, sizingStop: stop, sizingPips: Math.abs(entry - stop) / pipSizeFor(instrument), sizingFromRange: noStop });
       } catch (error) {
         return json(request, response, { error: error instanceof Error ? error.message : "Could not size the trade." }, 409);
       }

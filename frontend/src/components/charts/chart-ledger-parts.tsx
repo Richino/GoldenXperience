@@ -430,6 +430,7 @@ export function ChartLevelEditor({ levels, signal, onMoreOptions }: {
                     </>}
               </b>
               {row.invalid ? <small>Must be {row.hint} the {levels.relativeTo ?? "current price"}.</small> : null}
+              {row.key === "stop" && row.price === null ? <small className="nl-clevels-note">Loss isn&apos;t capped</small> : null}
             </div>
             <button type="button" className="nl-clevels-toggle pressable" onClick={() => levels.onToggle(row.key)}
               aria-label={`${row.price === null ? "Add" : "Remove"} ${row.label.toLowerCase()}`} disabled={levels.saving}>
@@ -467,6 +468,71 @@ export function ChartLevelEditor({ levels, signal, onMoreOptions }: {
           disabled={levels.saving || !levels.dirty || anyInvalid}
         >
           {levels.saving ? "Saving…" : "Save levels"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Phones: the level draft as one slim bar under the chart. Each set level is
+ * a chip (price · pips · R) with an ✕; a missing one is a small "+" chip.
+ * The trade sheet already chose which level to move, so there is no header,
+ * hint or second "None / Add" card here, just the draft and Cancel / Save.
+ */
+export function ChartLevelBar({ levels, signal }: {
+  levels: ChartHealthLevels;
+  signal: ChartPositionCardSignal;
+}) {
+  const pip = pipSizeFor(signal.instrument);
+  const long = signal.direction === "long";
+  const risk = levels.stop === null ? null : long ? signal.entry - levels.stop : levels.stop - signal.entry;
+  const rows = [
+    { key: "stop" as const, short: "SL", label: "Stop loss", price: levels.stop, invalid: levels.invalid.stop, side: long ? "below" : "above" },
+    { key: "target" as const, short: "TP", label: "Take profit", price: levels.target, invalid: levels.invalid.target, side: long ? "above" : "below" },
+  ];
+  const invalidRow = rows.find((row) => row.invalid && row.price !== null);
+  const anyInvalid = levels.invalid.stop || levels.invalid.target;
+  return (
+    <div className="nl-lbar">
+      <div className="nl-lbar-chips">
+        {rows.map((row) => {
+          if (row.price === null) {
+            return (
+              <button key={row.key} type="button" className={`nl-lbar-add is-${row.key} pressable`}
+                onClick={() => levels.onToggle(row.key)} disabled={levels.saving} aria-label={`Add ${row.label.toLowerCase()}`}>
+                <Plus aria-hidden="true" />{row.short}
+              </button>
+            );
+          }
+          const pips = (long ? row.price - signal.entry : signal.entry - row.price) / pip;
+          const r = risk === null || risk <= 0 ? null
+            : row.key === "stop" ? -1 : Math.abs(row.price - signal.entry) / risk;
+          return (
+            <span key={row.key} className={`nl-lbar-chip is-${row.key}${row.invalid ? " is-invalid" : ""}`}>
+              <b>{row.short}</b>
+              <span className="metric-number">
+                {formatChartPrice(row.price, signal.instrument)}
+                <small>{pips >= 0 ? "+" : "−"}{Math.abs(pips).toFixed(1)}p{r === null ? "" : ` · ${r < 0 ? "−" : ""}${Math.abs(r).toFixed(1)}R`}</small>
+              </span>
+              <button type="button" className="nl-lbar-remove pressable" onClick={() => levels.onToggle(row.key)}
+                disabled={levels.saving} aria-label={`Remove ${row.label.toLowerCase()}`}>
+                <X aria-hidden="true" />
+              </button>
+            </span>
+          );
+        })}
+      </div>
+      {levels.error ? <p className="nl-lbar-msg is-error" role="alert">{levels.error}</p>
+        : invalidRow ? <p className="nl-lbar-msg" role="note">{invalidRow.label} must be {invalidRow.side} the {levels.relativeTo ?? "current price"}.</p>
+          : null}
+      <div className="nl-lbar-actions">
+        <button type="button" className="nl-clevels-cancel pressable" onClick={levels.onCancel} disabled={levels.saving}>
+          Cancel
+        </button>
+        <button type="button" className="nl-clevels-save pressable" onClick={levels.onSave}
+          disabled={levels.saving || !levels.dirty || anyInvalid}>
+          {levels.saving ? "Saving…" : "Save"}
         </button>
       </div>
     </div>

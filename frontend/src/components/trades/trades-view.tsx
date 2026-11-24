@@ -30,7 +30,9 @@ import { usePageScrollLock } from "@/lib/use-page-scroll-lock";
 import { useForegroundRefresh } from "@/lib/use-foreground-refresh";
 import { TradesSkeleton, TradesSummarySkeleton, TradesToolbarSkeleton } from "@/components/ui/phone-skeletons";
 
-type Tab = "open" | "closed" | "all";
+// Open trades and waiting orders always live under Orders, so history only
+// needs Closed (an "All" tab would just repeat it).
+type Tab = "open" | "closed";
 type ClosedFilter = "all" | "wins" | "losses";
 
 type Quote = { bid: number; ask: number } | undefined;
@@ -254,7 +256,7 @@ function RBars({ results, compact = false }: { results: number[]; compact?: bool
 }
 
 /** Cumulative realized dollars for the headline trades, oldest to newest. */
-function RealizedMoneyLine({ results }: { results: number[] }) {
+function RealizedMoneyLine({ results, from, to }: { results: number[]; from: string | null; to: string | null }) {
   const points = results.reduce<number[]>((acc, r) => [...acc, (acc.at(-1) ?? 0) + r], [0]);
   const low = Math.min(...points);
   const high = Math.max(...points);
@@ -282,7 +284,8 @@ function RealizedMoneyLine({ results }: { results: number[] }) {
   // Break-even as a fraction of the height: green above it, red below.
   const zeroY = y(0);
   const split = `${((zeroY / height) * 100).toFixed(2)}%`;
-  const area = `${path} L${width},${zeroY} L0,${zeroY} Z`;
+  // Soft fill from the line down to the bottom edge.
+  const floor = `${path} L${width},${height} L0,${height} Z`;
 
   return (
     <span
@@ -291,27 +294,36 @@ function RealizedMoneyLine({ results }: { results: number[] }) {
       aria-label={`Cumulative realized profit over the last ${results.length} closed trades: ${fmtMoney(net, true)}. Oldest to newest; one step per trade.`}
       title={`Last ${results.length} closed trades: ${fmtMoney(net, true)}. One step per trade; dashed line is $0.`}
     >
+      <span className="nl-tr-line-plot">
       <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
         <defs>
-          <linearGradient id={`${id}-stroke`} gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="0" y2={height}>
-            <stop offset={split} stopColor="var(--accent)" />
-            <stop offset={split} stopColor="var(--danger)" />
-          </linearGradient>
+          {/* One colour for the whole line, the overall result's: an old dip
+              under the start no longer paints recent winners red. */}
           <linearGradient id={`${id}-fill`} gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="0" y2={height}>
-            <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.32" />
-            <stop offset={split} stopColor="var(--accent)" stopOpacity="0.08" />
-            <stop offset={split} stopColor="var(--danger)" stopOpacity="0.08" />
-            <stop offset="100%" stopColor="var(--danger)" stopOpacity="0.32" />
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
           </linearGradient>
         </defs>
-        <path d={area} fill={`url(#${id}-fill)`} className="nl-tr-line-area" />
+        <path d={floor} fill={`url(#${id}-fill)`} className="nl-tr-line-area" />
         <line x1="0" x2={width} y1={zeroY} y2={zeroY} className="nl-tr-line-zero" />
-        <path d={path} stroke={`url(#${id}-stroke)`} className="nl-tr-line-stroke" />
+        <path d={path} stroke="currentColor" className="nl-tr-line-stroke" />
       </svg>
       <span
         className="nl-tr-line-dot"
         style={{ left: `${(endX / width) * 100}%`, top: `${(endY / height) * 100}%` }}
       />
+      <span className="nl-tr-line-start" style={{ top: `${split}` }}>Start</span>
+      </span>
+      {/* Each trade's own result, in the same order and width as the line. */}
+      <span className="nl-tr-line-trades" style={{ gridTemplateColumns: `repeat(${results.length}, minmax(0, 1fr))` }}>
+        {results.map((r, i) => <i key={i} className={r >= 0 ? "is-win" : "is-loss"} />)}
+      </span>
+      {from && to ? (
+        <span className="nl-tr-line-dates metric-number">
+          <span>{formatShortDay(from)}</span>
+          <span>{formatShortDay(to) === formatShortDay(new Date()) ? "Today" : formatShortDay(to)}</span>
+        </span>
+      ) : null}
     </span>
   );
 }
@@ -408,8 +420,11 @@ function TradesSummaryRow({
   balanceHistory: AccountBalanceHistoryPoint[];
 }) {
   const withPl = recentClosed.filter((t) => typeof t.paperPl === "number" && Number.isFinite(t.paperPl));
-  const realizedResults = withPl.map((t) => t.paperPl as number).reverse();
-  const net = withPl.reduce((sum, t) => sum + (t.paperPl ?? 0), 0);
+  // What each trade actually left in the account: its P/L plus the overnight
+  // financing OANDA booked on it, so the headline matches the balance.
+  const landed = (t: JournalTrade) => (t.paperPl as number) + (typeof t.brokerFinancing === "number" && Number.isFinite(t.brokerFinancing) ? t.brokerFinancing : 0);
+  const realizedResults = withPl.map(landed).reverse();
+  const net = withPl.reduce((sum, t) => sum + landed(t), 0);
   // Return on the account: the net over the balance just before the oldest of
   // these trades closed, read from the broker's own balance history.
   const oldestClose = withPl.reduce<number | null>((oldest, t) => {
@@ -444,12 +459,13 @@ function TradesSummaryRow({
   return (
     <section className="nl-tr-summary" aria-label="Summary">
       <div className="nl-tr-hero">
-        <span className="nl-tr-hero-label">{hero.label}</span>
+        {/* Closed: the figure and its "% over N trades" line say it already. */}
+        {tab === "open" ? <span className="nl-tr-hero-label">{hero.label}</span> : null}
         <span className={`nl-tr-hero-value ${toneOf(hero.value)}`}>{fmtMoney(hero.value, true) ?? "—"}</span>
         <span className="nl-tr-hero-sub metric-number">{hero.sub}</span>
         {tab !== "open" && realizedResults.length ? (
           <span className="nl-tr-hero-bars">
-            <RealizedMoneyLine results={realizedResults} />
+            <RealizedMoneyLine results={realizedResults} from={withPl.at(-1)?.closedAt ?? null} to={withPl[0]?.closedAt ?? null} />
           </span>
         ) : null}
       </div>
@@ -558,7 +574,7 @@ function InterestCard({ point }: { point: AccountBalanceHistoryPoint }) {
         <span className={`nl-tr-money metric-number ${toneOf(point.change)}`}>{fmtMoney(point.change, true)}</span>
       </span>
       <span className="nl-tr-card-meta">
-        <span>Financing · {dayAndTime(point.time)}</span>
+        <span>Financing · {formatClockTime(point.time)}</span>
         <span className="nl-tr-rpill">Interest</span>
       </span>
     </div>
@@ -566,6 +582,34 @@ function InterestCard({ point }: { point: AccountBalanceHistoryPoint }) {
 }
 
 type ListItem = { kind: "trade"; trade: JournalTrade } | { kind: "interest"; point: AccountBalanceHistoryPoint };
+
+/**
+ * Phone list: consecutive items on the same (New York) day share a header with
+ * the day's realized total. Open trades sit in their own "Open" group.
+ */
+function groupByDay(items: ListItem[]) {
+  const today = formatShortDay(new Date());
+  const yesterday = formatShortDay(new Date(Date.now() - 86_400_000));
+  const weekday = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short" });
+  const groups: { key: string; label: string; total: number | null; items: ListItem[] }[] = [];
+  for (const item of items) {
+    const open = item.kind === "trade" && item.trade.status === "open";
+    const at = item.kind === "interest" ? item.point.time : item.trade.closedAt;
+    const day = open || !at ? "Open" : formatShortDay(at);
+    let group = groups.at(-1);
+    if (!group || group.key !== day) {
+      const label = day === "Open" ? "Open" : day === today ? "Today" : day === yesterday ? "Yesterday" : `${weekday.format(new Date(at!))} · ${day}`;
+      group = { key: day, label, total: open ? null : 0, items: [] };
+      groups.push(group);
+    }
+    group.items.push(item);
+    if (group.total !== null) {
+      const value = item.kind === "interest" ? item.point.change : item.trade.paperPl;
+      if (typeof value === "number" && Number.isFinite(value)) group.total += value;
+    }
+  }
+  return groups;
+}
 
 function TradeCard({
   trade,
@@ -581,8 +625,10 @@ function TradeCard({
   const r = isOpen ? live?.openR ?? null : closedR.value;
   const rEstimated = !isOpen && closedR.estimated;
   const money = isOpen ? live?.money ?? null : trade.paperPl ?? null;
-  const strategy = strategyLabel(trade) ?? (trade.origin === "manual" ? "Manual" : null);
-  const when = isOpen ? `opened ${dayAndTime(trade.openedAt)}` : dayAndTime(trade.closedAt);
+  // The day is the group header, so a row only needs its time; "Manual" is
+  // every hand-placed trade and only a strategy name is worth showing.
+  const strategy = strategyLabel(trade);
+  const when = isOpen ? `Opened ${dayAndTime(trade.openedAt)}` : trade.closedAt ? formatClockTime(trade.closedAt) : "—";
   return (
     <button type="button" className="nl-tr-card" onClick={onSelect} aria-label={`${trade.pair} trade details`}>
       <span className="nl-tr-card-top">
@@ -617,7 +663,9 @@ function TradeDetail({
   const r = isOpen ? live?.openR ?? null : closedR.value;
   const rEstimated = !isOpen && closedR.estimated;
   const shownExit = isOpen ? live?.current ?? null : trade.exit;
-  const lots = isOpen ? live?.lots ?? null : null;
+  // Open: the live position. Closed: the size the journal kept for it.
+  const savedLots = typeof trade.units === "number" && trade.units > 0 ? trade.units / 100_000 : null;
+  const lots = (isOpen ? live?.lots : null) ?? savedLots;
   const href = chartHrefForTrade(trade);
   // Position on the stop → target line, 0–100. A short's span is negative,
   // so the same formula serves both sides. The line needs both levels.
@@ -790,6 +838,20 @@ function useWideLayout() {
 export function TradesView() {
   const [tab, setTab] = useState<Tab>("open");
   const [closedFilter, setClosedFilter] = useState<ClosedFilter>("all");
+  // Phones: the filter + search row sticks to the top once it scrolls away.
+  // A callback ref, because the first render is a loading view without the
+  // anchor; the watcher attaches whenever the anchor actually appears.
+  const [filterAnchor, setFilterAnchor] = useState<HTMLDivElement | null>(null);
+  const [filtersStuck, setFiltersStuck] = useState(false);
+  useEffect(() => {
+    if (!filterAnchor) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      // Stuck only once it has gone off the top, not while still below the fold.
+      setFiltersStuck(!entry!.isIntersecting && entry!.boundingClientRect.top < 0);
+    });
+    observer.observe(filterAnchor);
+    return () => observer.disconnect();
+  }, [filterAnchor]);
   const [query, setQuery] = useState("");
   const [records, setRecords] = useState<JournalTrade[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -932,8 +994,9 @@ export function TradesView() {
     const requested = new URLSearchParams(window.location.search).get("tab");
     if (requested !== "open" && requested !== "orders" && requested !== "closed" && requested !== "all") return;
     tabChosenRef.current = true;
+    // Old ?tab=all links land on Closed.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setTab(requested === "orders" ? "open" : requested);
+    setTab(requested === "orders" ? "open" : requested === "all" ? "closed" : requested);
   }, []);
   // With no open trades and no pending orders, Orders would be empty: open on
   // Closed instead. Decided once, after the first load of both.
@@ -950,7 +1013,6 @@ export function TradesView() {
 
   const openCount = openTrades.length;
   const closedCount = Math.max(0, (summary?.total ?? 0) - openCount);
-  const allCount = summary?.total ?? openCount + closedTrades.length;
 
   // Live open aggregates for the summary strip.
   const openAgg = useMemo(() => {
@@ -996,7 +1058,7 @@ export function TradesView() {
   // closed position behind a page boundary.
   const rows = useMemo(() => {
     let list: JournalTrade[] =
-      tab === "open" ? openTrades : tab === "closed" ? closedTrades : records;
+      tab === "open" ? openTrades : closedTrades;
     // "eurusd", "eur/usd" and "EUR_USD" all match: compare letters and digits only.
     const compact = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
     const q = compact(query);
@@ -1005,7 +1067,7 @@ export function TradesView() {
       list = list.filter((t) => (closedFilter === "wins" ? t.result === "win" : t.result === "loss"));
     }
     return list;
-  }, [tab, openTrades, closedTrades, records, query, closedFilter]);
+  }, [tab, openTrades, closedTrades, query, closedFilter]);
 
   // History tabs interleave overnight interest by time. Only interest inside
   // the span the loaded pages cover, so "Load more" doesn't leave every older
@@ -1063,7 +1125,6 @@ export function TradesView() {
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: "open", label: "Orders", count: openCount + pendingOrders.length },
     { id: "closed", label: "Closed", count: closedCount },
-    { id: "all", label: "All", count: allCount },
   ];
   const initialTabLoading = loading && summary === null;
 
@@ -1083,6 +1144,30 @@ export function TradesView() {
         </div>
         <NotificationBell compact={!wide} className="nl-tr-bell" />
       </header>
+
+      {/* The tabs come first and never move: everything that depends on the
+          tab (its summary, filters and list) sits below them, so switching
+          Orders ↔ Closed doesn't shove the switcher up or down the page. */}
+      {initialTabLoading ? (
+        <TradesToolbarSkeleton showFilters={tab !== "open"} />
+      ) : (
+        <div className="nl-tr-toolbar nl-tr-toolbar-tabs">
+          <div className="nl-tr-tabs" role="tablist" aria-label="Trade state">
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                className={tab === t.id ? "is-active" : ""}
+                onClick={() => chooseTab(t.id)}
+              >
+                {t.label} <span className="metric-number">{t.count}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {initialTabLoading || (tab === "open" && ordersLoading) ? (
         <TradesSummarySkeleton />
@@ -1106,24 +1191,9 @@ export function TradesView() {
         />
       )}
 
-      {initialTabLoading ? (
-        <TradesToolbarSkeleton showFilters={tab !== "open"} />
-      ) : (
-        <div className="nl-tr-toolbar">
-          <div className="nl-tr-tabs" role="tablist" aria-label="Trade state">
-            {tabs.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={tab === t.id}
-                className={tab === t.id ? "is-active" : ""}
-                onClick={() => chooseTab(t.id)}
-              >
-                {t.label} <span className="metric-number">{t.count}</span>
-              </button>
-            ))}
-          </div>
+      <div ref={setFilterAnchor} className="nl-tr-stick-anchor" aria-hidden="true" />
+      {initialTabLoading ? null : (
+        <div className={`nl-tr-toolbar nl-tr-toolbar-filters${filtersStuck ? " is-stuck" : ""}`}>
           {tab !== "open" ? (
             <div className="nl-tr-filters" role="group" aria-label="Result filter">
               {(["all", "wins", "losses"] as ClosedFilter[]).map((f) => (
@@ -1143,6 +1213,8 @@ export function TradesView() {
             <Search aria-hidden="true" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search pair" aria-label="Search trades" />
           </label>
+          {/* The page's bell has scrolled off with the title; it rides along here. */}
+          {filtersStuck ? <NotificationBell compact className="nl-tr-stuck-bell" /> : null}
         </div>
       )}
 
@@ -1184,18 +1256,30 @@ export function TradesView() {
                 ))}
               </div>
               <div className="nl-tr-cards">
-                {items.map((item) => item.kind === "interest" ? (
-                  <InterestCard key={`interest-${item.point.id}`} point={item.point} />
-                ) : (
-                  <TradeCard
-                    key={item.trade.id}
-                    trade={item.trade}
-                    live={liveFor(item.trade)}
-                    onSelect={() => {
-                      setSelectedId(item.trade.id);
-                      setSheetOpen(true);
-                    }}
-                  />
+                {groupByDay(items).map((group) => (
+                  <section key={group.key} className="nl-tr-day" aria-label={group.label}>
+                    <header className="nl-tr-day-head">
+                      <span>{group.label}</span>
+                      {group.total !== null ? (
+                        <span className={`metric-number ${toneOf(group.total)}`}>{fmtMoney(group.total, true)}</span>
+                      ) : null}
+                    </header>
+                    <div className="nl-tr-day-list">
+                      {group.items.map((item) => item.kind === "interest" ? (
+                        <InterestCard key={`interest-${item.point.id}`} point={item.point} />
+                      ) : (
+                        <TradeCard
+                          key={item.trade.id}
+                          trade={item.trade}
+                          live={liveFor(item.trade)}
+                          onSelect={() => {
+                            setSelectedId(item.trade.id);
+                            setSheetOpen(true);
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </section>
                 ))}
               </div>
               {tab !== "open" && hasMore ? (

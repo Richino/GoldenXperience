@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import type { PendingManualEntry } from "@/types/pending-entry";
 import { entryOrderHref, entryOrderStatus } from "@/lib/journal/active-orders";
 import { formatChartPrice } from "@/lib/chart-utils";
@@ -13,13 +13,14 @@ export function PendingOrders({ entries, asOf }: { entries: PendingManualEntry[]
     <h2 className={styles.heading}>Pending entries <span>{entries.length}</span></h2>
     {entries.map(entry => {
       const price = (value: number | null) => value === null ? "None" : formatChartPrice(value, entry.instrument);
+      const tone = (value: number | null, kind: "stop" | "target") => value === null ? styles.unset : kind === "stop" ? styles.down : styles.up;
       const status = entryOrderStatus(entry, now);
       const when = status === "Scheduled" ? entry.activateAt! : entry.createdAt;
       const linked = entry.metadata.linkedOco === true || typeof entry.metadata.straddleId === "string";
       return <Link key={entry.id} href={entryOrderHref(entry)} prefetch={false} className={styles.card} aria-label={`View ${entry.instrument.replace("_", "/")} ${entry.direction} order, ${status}`}>
-        <div className={styles.top}><div className="nl-tr-pair"><b>{entry.instrument.replace("_", "/")}</b><span className={`nl-tr-side ${entry.direction === "long" ? "is-up" : "is-down"}`}>{entry.direction === "long" ? "Long" : "Short"}</span></div><span className={styles.status}>{status}</span></div>
-        <dl className={styles.levels}><div><dt>Entry · {entry.entryOrderType.endsWith("stop") ? "Stop" : "Limit"}</dt><dd>{price(entry.entryPrice)}</dd></div><div><dt>Stop loss</dt><dd>{price(entry.stopPrice)}</dd></div><div><dt>Take profit</dt><dd>{price(entry.targetPrice)}</dd></div></dl>
-        <div className={styles.meta}><span>{linked ? "Linked OCO · " : ""}{formatShortDay(when)} · {formatClockTime(when)}</span><span>View order <ArrowUpRight size={14} aria-hidden="true" /></span></div>
+        <div className={styles.top}><div className="nl-tr-pair"><b>{entry.instrument.replace("_", "/")}</b><span className={`nl-tr-side ${entry.direction === "long" ? "is-up" : "is-down"}`}>{entry.direction === "long" ? "Long" : "Short"}</span></div><span className={styles.status}><i aria-hidden="true" />{status}<ChevronRight className={styles.go} aria-hidden="true" /></span></div>
+        <dl className={styles.levels}><div><dt>Entry · {entry.entryOrderType.endsWith("stop") ? "Stop" : "Limit"}</dt><dd>{price(entry.entryPrice)}</dd></div><div><dt>Stop loss</dt><dd className={tone(entry.stopPrice, "stop")}>{price(entry.stopPrice)}</dd></div><div><dt>Take profit</dt><dd className={tone(entry.targetPrice, "target")}>{price(entry.targetPrice)}</dd></div></dl>
+        <div className={styles.meta}><span>{linked ? "Linked OCO · " : ""}{status === "Scheduled" ? "Starts" : "Placed"} {formatShortDay(when)} · {formatClockTime(when)}</span></div>
       </Link>;
     })}
   </section>;

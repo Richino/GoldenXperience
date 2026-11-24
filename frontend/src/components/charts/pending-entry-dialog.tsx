@@ -191,7 +191,7 @@ export function PendingEntryDialog({
   // What this order would be sized to, from the server's own sizing (your
   // Settings risk %, live conversion rate, no lot cap), so the preview and the
   // OANDA order always match. Asked after typing settles.
-  const [positionSize, setPositionSize] = useState<{ key: string; lots: number; riskAmount: number; riskPercent: number; balance: number } | null>(null);
+  const [positionSize, setPositionSize] = useState<{ key: string; lots: number; riskAmount: number; riskPercent: number; balance: number; sizingPips: number | null } | null>(null);
   // How much to trade, set here per order: fixed lots, or % of the account to
   // risk at the stop. An edited entry starts from its saved choice; a new one
   // from the last choice used on this device.
@@ -199,7 +199,7 @@ export function PendingEntryDialog({
   const [sizeValue, setSizeValue] = useState(() => initialSizeChoice(selectedEntry).value);
   const sizeNumber = Number(sizeValue);
   const sizeChoice = sizeValue.trim() && Number.isFinite(sizeNumber) && sizeNumber > 0
-    && (sizeMode === "lots" ? sizeNumber >= 0.01 && sizeNumber <= 100 : sizeNumber <= 20)
+    && (sizeMode === "lots" ? sizeNumber >= 0.01 && sizeNumber <= 100 : sizeNumber >= 0.01 && sizeNumber <= 20)
     ? (sizeMode === "lots" ? { mode: "lots" as const, lots: sizeNumber } : { mode: "percent" as const, percent: sizeNumber })
     : null;
   const sizeValid = sizeChoice !== null;
@@ -209,18 +209,22 @@ export function PendingEntryDialog({
   }, [sizeValid, sizeMode, sizeValue]);
   const sizeEntry = Number(entryPrice), sizeStop = stopPrice.trim() ? Number(stopPrice) : NaN;
   const sizeQuery = sizeChoice ? (sizeChoice.mode === "lots" ? `lots=${sizeChoice.lots}` : `percent=${sizeChoice.percent}`) : null;
-  const sizeKey = sizeQuery && Number.isFinite(sizeEntry) && sizeEntry > 0 && Number.isFinite(sizeStop) && sizeStop > 0 && sizeEntry !== sizeStop
-    ? `${instrument}|${sizeEntry}|${sizeStop}|${sizeQuery}` : null;
+  // No stop yet: the server sizes off the same hourly-range stand-in the order
+  // will use, which needs the side to know which way the stand-in sits.
+  const sizeStopPart = Number.isFinite(sizeStop) && sizeStop > 0 && sizeEntry !== sizeStop ? `stop=${sizeStop}`
+    : !stopPrice.trim() && direction ? `direction=${direction}` : null;
+  const sizeKey = sizeQuery && sizeStopPart && Number.isFinite(sizeEntry) && sizeEntry > 0
+    ? `${instrument}|${sizeEntry}|${sizeStopPart}|${sizeQuery}` : null;
   useEffect(() => {
     if (!open || !sizeKey) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      const [, entry, stop, choice] = sizeKey.split("|");
-      fetch(apiUrl(`/api/pending-entries/size?instrument=${instrument}&entry=${entry}&stop=${stop}&${choice}`), { credentials: "include", cache: "no-store" })
+      const [, entry, stopPart, choice] = sizeKey.split("|");
+      fetch(apiUrl(`/api/pending-entries/size?instrument=${instrument}&entry=${entry}&${stopPart}&${choice}`), { credentials: "include", cache: "no-store" })
         .then((response) => (response.ok ? response.json() : null))
-        .then((payload: { lots?: number; riskAmount?: number; riskPercent?: number; balance?: number } | null) => {
+        .then((payload: { lots?: number; riskAmount?: number; riskPercent?: number; balance?: number; sizingPips?: number } | null) => {
           if (cancelled || !payload || typeof payload.lots !== "number") return;
-          setPositionSize({ key: sizeKey, lots: payload.lots, riskAmount: payload.riskAmount ?? 0, riskPercent: payload.riskPercent ?? 0, balance: payload.balance ?? 0 });
+          setPositionSize({ key: sizeKey, lots: payload.lots, riskAmount: payload.riskAmount ?? 0, riskPercent: payload.riskPercent ?? 0, balance: payload.balance ?? 0, sizingPips: typeof payload.sizingPips === "number" ? payload.sizingPips : null });
         })
         .catch(() => undefined);
     }, 350);
@@ -786,9 +790,15 @@ export function PendingEntryDialog({
                 <dt>{sizeMode === "lots" ? "Risk" : "Lots"}</dt>
                 <dd className="metric-number">
                   {!sizeChoice
-                    ? sizeMode === "lots" ? "0.01 – 100 lots" : "Up to 20%"
+                    ? sizeMode === "lots" ? "0.01 – 100 lots" : "0.01% – 20%"
                     : parsedStop === null
-                      ? sizeMode === "lots" ? `${sizeChoice.mode === "lots" ? sizeChoice.lots.toFixed(2) : ""} lots · no stop` : "Sized on the hourly range · no stop"
+                      // No stop: say which distance the size stands on, so the lots aren't a mystery.
+                      ? currentSize && currentSize.sizingPips !== null
+                        ? sizeMode === "lots"
+                          ? `$${currentSize.riskAmount.toFixed(0)} per ${currentSize.sizingPips.toFixed(1)}p move`
+                          : `${currentSize.lots.toFixed(2)} lots · ${currentSize.sizingPips.toFixed(1)}p est. stop`
+                        : sizeKey ? "Sizing…"
+                          : sizeMode === "lots" ? `${sizeChoice.mode === "lots" ? sizeChoice.lots.toFixed(2) : ""} lots · no stop` : "Pick a side and entry to size"
                       : currentSize
                         ? sizeMode === "lots"
                           ? `$${currentSize.riskAmount.toFixed(0)} (${currentSize.riskPercent}%) at the stop`

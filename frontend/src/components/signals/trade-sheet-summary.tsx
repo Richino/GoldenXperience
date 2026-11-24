@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Plus } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import { formatChartPrice } from "@/lib/chart-utils";
 import { pipSizeFor } from "@/lib/instruments/catalog";
 import type { PendingManualEntry } from "@/types/pending-entry";
@@ -28,8 +28,9 @@ type Rung = {
 /**
  * The selected trade at the top of the phone trade sheet, drawn as a price
  * ladder in the chart's own order (highest price on top): stop, entry and
- * target, each with what it books. A missing stop is its own rung with an
- * Add button rather than a separate warning.
+ * target, each with what it books. Tapping the stop or target rung places
+ * that line on the chart to drag (a missing one is added first), so the
+ * sheet is the only place that asks "add or move?".
  */
 export function TradeSheetSummary({
   entry,
@@ -39,7 +40,8 @@ export function TradeSheetSummary({
   exitMoney,
   livePL,
   livePLColor,
-  onAddStop,
+  onEditLevel,
+  onMoreOptions,
 }: {
   entry: PendingManualEntry;
   bid: number | null;
@@ -50,8 +52,10 @@ export function TradeSheetSummary({
   /** Open trades: the broker's current unrealized P/L label. */
   livePL: string | null;
   livePLColor: string | null;
-  /** Shown when the trade has no stop; starts the level editor with one added. */
-  onAddStop: (() => void) | null;
+  /** Opens the chart level editor on this level, adding it first when unset. Null: levels can't be edited here. */
+  onEditLevel: ((key: "stop" | "target") => void) | null;
+  /** A waiting order: open the full form for its entry, size or expiry. */
+  onMoreOptions: (() => void) | null;
 }) {
   const instrument = entry.instrument as MajorInstrument;
   const pip = pipSizeFor(instrument);
@@ -70,6 +74,13 @@ export function TradeSheetSummary({
     const label = exitMoney(value);
     return label ? <span className="nl-ts-money metric-number">{label}</span> : null;
   };
+  // Stop / target rungs: an Add pill when unset, otherwise what it books and a
+  // chevron saying the row opens. The whole row is the tap target.
+  const levelRight = (value: number | null) => {
+    if (!onEditLevel) return value === null ? null : money(value);
+    if (value === null) return <span className="nl-ts-add" aria-hidden="true"><Plus />Add</span>;
+    return <span className="nl-ts-go">{money(value)}<ChevronRight aria-hidden="true" /></span>;
+  };
 
   // Unset levels sit on their natural side of entry: a long's stop below it.
   const offset = 1;
@@ -79,9 +90,7 @@ export function TradeSheetSummary({
       label: "Stop loss",
       price: entry.stopPrice,
       sortPrice: entry.stopPrice ?? entryPrice + (long ? -offset : offset),
-      right: entry.stopPrice === null
-        ? (onAddStop ? <button type="button" className="nl-ts-add pressable" onClick={onAddStop}><Plus aria-hidden="true" />Add</button> : null)
-        : money(entry.stopPrice),
+      right: levelRight(entry.stopPrice),
       note: entry.stopPrice === null ? "Loss isn't capped" : undefined,
     },
     {
@@ -100,7 +109,7 @@ export function TradeSheetSummary({
       label: "Take profit",
       price: entry.targetPrice,
       sortPrice: entry.targetPrice ?? entryPrice + (long ? offset : -offset),
-      right: entry.targetPrice === null ? null : money(entry.targetPrice),
+      right: levelRight(entry.targetPrice),
     },
   ];
   rungs.sort((a, b) => b.sortPrice - a.sortPrice);
@@ -118,8 +127,19 @@ export function TradeSheetSummary({
         </span>
       </div>
       <ol className="nl-ts-ladder">
-        {rungs.map((rung) => (
-          <li key={rung.key} className={`is-${rung.key}${rung.price === null ? " is-unset" : ""}`}>
+        {rungs.map((rung) => {
+          const level = rung.key === "entry" ? null : rung.key;
+          const tappable = level !== null && onEditLevel !== null;
+          return (
+          <li key={rung.key} className={`is-${rung.key}${rung.price === null ? " is-unset" : ""}${tappable ? " is-tappable" : ""}`}>
+            {tappable ? (
+              <button
+                type="button"
+                className="nl-ts-hit pressable"
+                onClick={() => onEditLevel(level)}
+                aria-label={`${rung.price === null ? "Add" : "Move"} ${rung.label.toLowerCase()}`}
+              />
+            ) : null}
             <i aria-hidden="true" />
             <div className="nl-ts-rung">
               <span>{rung.label}</span>
@@ -128,12 +148,19 @@ export function TradeSheetSummary({
             </div>
             {rung.right}
           </li>
-        ))}
+          );
+        })}
       </ol>
       <p className="nl-ts-foot metric-number">
         {open ? null : <span>{orderType.charAt(0).toUpperCase()}{orderType.slice(1)}</span>}
-        {spread === null ? null : <span>Spread {spread.toFixed(1)} p</span>}
-        {open ? null : <span>{expiryLabel(entry.expiresAt, now)}</span>}
+        {spread === null ? null : <span>Spread {spread.toFixed(1)}</span>}
+        {open || !entry.expiresAt ? null : <span>{expiryLabel(entry.expiresAt, now)}</span>}
+        {onMoreOptions ? (
+          <button type="button" className="nl-ts-more pressable" onClick={onMoreOptions}>
+            Change entry, size or expiry
+            <ChevronRight aria-hidden="true" />
+          </button>
+        ) : null}
       </p>
     </div>
   );

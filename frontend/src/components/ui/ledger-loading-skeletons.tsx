@@ -39,7 +39,7 @@ export function TradesSummarySkeleton() {
 export function TradesToolbarSkeleton({ showFilters = false }: { showFilters?: boolean }) {
   return (
     <div className="nl-tr-toolbar nl-skeleton-toolbar" aria-hidden="true">
-      <div className="nl-tr-tabs">{Array.from({ length: 3 }, (_, i) => <SkeletonBlock key={i} width={104} height={40} radius={10} />)}</div>
+      <div className="nl-tr-tabs">{Array.from({ length: 2 }, (_, i) => <SkeletonBlock key={i} width={104} height={40} radius={10} />)}</div>
       {showFilters ? <div className="nl-tr-filters">{[48, 60, 68].map((w) => <SkeletonBlock key={w} width={w} height={36} radius={999} />)}</div> : null}
       <div className="nl-tr-search"><SkeletonBlock width={18} height={18} /><SkeletonBlock width={100} /></div>
     </div>

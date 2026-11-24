@@ -73,7 +73,6 @@ function PendingLevelsForm({
   const submit = async () => {
     const stopText = stop.trim();
     const targetText = target.trim();
-    if (Boolean(stopText) !== Boolean(targetText)) return setError("Enter both a stop loss and a take profit, or leave both blank.");
     const stopPrice = stopText ? Number(stopText) : null;
     const targetPrice = targetText ? Number(targetText) : null;
     if (stopPrice !== null && !(Number.isFinite(stopPrice) && stopPrice > 0)) return setError("Enter a valid stop loss price.");
@@ -128,7 +127,6 @@ function PendingLevelsForm({
             <input className="metric-number is-up" inputMode="decimal" value={target} placeholder="None" disabled={saving} onChange={(event) => setTarget(event.target.value)} />
           </label>
         </div>
-        <p className="pending-levels-hint">Leave both blank to run the trade with no stop or target. Size is re-set to your usual risk.</p>
         {error ? <p className="pending-levels-error" role="alert">{error}</p> : null}
         <footer>
           <button type="button" className="manual-proposal-dismiss pressable" disabled={saving} onClick={onCancel}>

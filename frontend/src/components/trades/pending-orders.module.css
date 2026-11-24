@@ -6,15 +6,21 @@
 .list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin-bottom: 24px; }
 .heading { grid-column: 1 / -1; margin: 0 0 4px; font-size: 14px; font-weight: 650; display: flex; align-items: center; gap: 8px; }
 .heading span { color: var(--muted-strong); font-size: 12px; font-weight: 500; }
-.card { display: flex; flex-direction: column; gap: 16px; min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); color: var(--foreground); text-decoration: none; }
-.card:hover { border-color: var(--border-strong); background: var(--surface-raised); }
+.card { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 14px 14px 12px 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); color: var(--foreground); text-decoration: none; box-shadow: 0 1px 2px rgb(20 22 18 / 4%), 0 8px 24px -12px rgb(20 22 18 / 12%); transition: border-color .15s ease, transform .15s ease; }
+.card:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+.card:active { transform: scale(.99); }
 .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.status { font-size: 11px; color: var(--foreground); border: 1px solid var(--border-strong); border-radius: 6px; padding: 5px 8px; }
-.levels { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; margin: 0; }
+/* Status as a dot + word, with a chevron: the whole card opens the order. */
+.status { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--muted-strong); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.status > i { width: 6px; height: 6px; border-radius: 50%; background: #f59e0b; box-shadow: 0 0 0 3px color-mix(in srgb, #f59e0b 18%, transparent); }
+.go { width: 16px; height: 16px; margin-left: 2px; color: var(--muted); }
+.levels { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; margin: 0; padding-top: 10px; border-top: 1px solid var(--border); }
 .levels dt { margin-bottom: 5px; }
-.levels dd { margin: 0; font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.levels dd { margin: 0; font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.levels dd.up { color: var(--success, var(--accent)); }
+.levels dd.down { color: var(--danger); }
+.levels dd.unset { color: var(--muted); font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif; font-size: 13px; font-weight: 500; }
 .meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.meta > span:last-child { display: flex; align-items: center; gap: 4px; color: var(--foreground); }
 @media(max-width:480px) { .overview { padding:16px 12px; gap:8px; }.overview span { font-size:11px; }.card { padding:14px; }.levels dt { font-size:11px; } }
 @media(max-width:700px) { .list { grid-template-columns: 1fr; } }

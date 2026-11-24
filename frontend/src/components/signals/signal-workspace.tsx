@@ -13,7 +13,6 @@ import {
   ChevronDown,
   ChevronRight,
   CircleStop,
-  MoveVertical,
   Clock3,
   Ellipsis,
   History,
@@ -51,7 +50,7 @@ import { TrendLabel, usePairTrendList } from "@/components/charts/trend-label";
 import { weeklySwingStatus } from "@/lib/swing-trend-status";
 import { SwingIntelligenceCard } from "@/components/analysis/swing-intelligence-card";
 import type { SwingZone } from "@/lib/swing-intelligence";
-import { ChartHealthCard, ChartLevelEditor, ChartNewsCard, ChartPendingLevelsCard, ChartOhlcReadout, ChartStatusLine, type ChartHealthLevels, type ChartPositionCardSignal } from "@/components/charts/chart-ledger-parts";
+import { ChartHealthCard, ChartLevelBar, ChartNewsCard, ChartPendingLevelsCard, ChartOhlcReadout, ChartStatusLine, type ChartHealthLevels, type ChartPositionCardSignal } from "@/components/charts/chart-ledger-parts";
 import {
   ManualProposalModal,
   useManualProposal,
@@ -64,7 +63,7 @@ import { PriceDigits } from "@/components/ui/price-digits";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { apiUrl } from "@/lib/api/url";
 import { usePairStrength } from "@/components/signals/pair-strength-tag";
-import { formatClockTime, formatDayAndTime } from "@/lib/format/datetime";
+import { formatClockTime, formatDayAndTime, formatShortDay } from "@/lib/format/datetime";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import {
   CHART_INDICATORS,
@@ -2202,6 +2201,19 @@ function TradeFocusBar({
   const pips = closed
     ? ((long ? trade.exit! - trade.entry : trade.entry - trade.exit!) / pipSizeFor(trade.instrument))
     : null;
+  // The money is the headline; R and pips sit under it.
+  const money = closed && typeof trade.paperPl === "number" && Number.isFinite(trade.paperPl) ? trade.paperPl : null;
+  const moneyLabel = money === null ? null
+    : `${money < 0 ? "−" : "+"}${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(Math.abs(money))}`;
+  const pipsLabel = pips === null ? null : `${pips >= 0 ? "+" : "−"}${Math.abs(pips).toFixed(1)} pips`;
+  const resultWon = money !== null ? money >= 0 : won;
+  // Phone card: "Nov 23 · 1:36 → 4:59 AM" when it opened and closed the same day.
+  const sameDay = closed && formatShortDay(trade.openedAt) === formatShortDay(trade.closedAt!);
+  const whenLabel = !closed ? `Opened ${tradeMoment(trade.openedAt)}`
+    : sameDay ? `${formatShortDay(trade.openedAt)} · ${formatClockTime(trade.openedAt).replace(/ [AP]M$/, "")} → ${formatClockTime(trade.closedAt!)}`
+      : `${tradeMoment(trade.openedAt)} → ${tradeMoment(trade.closedAt!)}`;
+  const headline = moneyLabel ?? (trade.resultR !== null ? formatResultR(trade.resultR) : null);
+  const tone = moneyLabel !== null ? (resultWon ? "is-won" : "is-lost") : trade.resultR !== null ? (won ? "is-won" : "is-lost") : "";
 
   return (
     <div
@@ -2209,6 +2221,28 @@ function TradeFocusBar({
       data-side={long ? "buy" : "sell"}
       aria-label={`Focused ${long ? "buy" : "sell"} trade ${trade.tradeSequence}`}
     >
+      {/* Phones: one aligned column, side and time on top, the result as the
+          headline, the price path under it. Desktop keeps the row below. */}
+      <div className={`nl-tfb-m ${tone}`}>
+        <div className="nl-tfb-m-top">
+          <span className={`nl-tfb-side ${long ? "is-up" : "is-down"}`}>{long ? "Long" : "Short"}</span>
+          <span>{closed ? `Held ${heldFor(trade.openedAt, trade.closedAt!)}` : "Open"}</span>
+        </div>
+        <div className="nl-tfb-m-main">
+          {headline !== null ? (
+            <b className="metric-number" aria-label={moneyLabel !== null ? `${resultWon ? "You made" : "You lost"} ${moneyLabel}` : undefined}>{headline}</b>
+          ) : <b className="is-open">Open</b>}
+          <span className="nl-tfb-m-stats metric-number">
+            {moneyLabel !== null && trade.resultR !== null ? <b>{formatResultR(trade.resultR)}</b> : null}
+            {pipsLabel ? <small>{pipsLabel}</small> : null}
+          </span>
+        </div>
+        <div className="nl-tfb-m-path metric-number">
+          <span>{formatChartPrice(trade.entry, trade.instrument)} → {closed ? formatChartPrice(trade.exit!, trade.instrument) : "open"}</span>
+          <span>{whenLabel}</span>
+        </div>
+      </div>
+
       <div className="nl-tfb-id">
         <span className={`nl-tfb-side ${long ? "is-up" : "is-down"}`}>{long ? "Long" : "Short"}</span>
         <span className="nl-tfb-meta">
@@ -2240,10 +2274,17 @@ function TradeFocusBar({
       </div>
 
       <div className="nl-tfb-end">
-        {trade.resultR !== null ? (
+        {moneyLabel !== null ? (
+          <span className={`nl-tfb-result has-money ${resultWon ? "is-won" : "is-lost"}`}>
+            <b className="metric-number" aria-label={`${resultWon ? "You made" : "You lost"} ${moneyLabel}`}>{moneyLabel}</b>
+            <small className="metric-number">
+              {[trade.resultR !== null ? formatResultR(trade.resultR) : null, pipsLabel].filter(Boolean).join(" · ")}
+            </small>
+          </span>
+        ) : trade.resultR !== null ? (
           <span className={`nl-tfb-result ${won ? "is-won" : "is-lost"}`}>
             <b className="metric-number">{formatResultR(trade.resultR)}</b>
-            {pips !== null ? <small className="metric-number">{pips >= 0 ? "+" : "−"}{Math.abs(pips).toFixed(1)} pips</small> : null}
+            {pipsLabel ? <small className="metric-number">{pipsLabel}</small> : null}
           </span>
         ) : null}
         <button type="button" onClick={onClear} className="nl-tfb-clear pressable" aria-label="Clear trade">
@@ -5248,10 +5289,7 @@ export function SignalWorkspace({
             // Moving SL / TP: the lines are dragged on the chart above; this
             // is the same draft panel as the desktop Trade health card.
             <div className="gx-mobile-analyze-section nl-mlevels" ref={reserveMobileLevelEditor}>
-              <ChartLevelEditor levels={healthLevels} signal={levelSignal} onMoreOptions={levelPending && levelTrade ? () => {
-                healthLevels.onCancel();
-                openEntryForm(levelTrade);
-              } : undefined} />
+              <ChartLevelBar levels={healthLevels} signal={levelSignal} />
             </div>
           ) : mobileTradeActionReady ? (
             // No bar under the chart: the chart runs to the tab bar, New trade
@@ -5320,29 +5358,22 @@ export function SignalWorkspace({
                         : formatPendingExitPL}
                       livePL={activeManualTrade ? activeTradePL : null}
                       livePLColor={activeManualTrade ? activeTradePLColor : null}
-                      onAddStop={healthLevels && selectedPairTrade.stopPrice === null ? () => {
+                      onEditLevel={healthLevels && levelTrade?.id === selectedPairTrade.id ? (key) => {
+                        // Straight to the line on the chart; an unset level is added first.
                         setTradeSheetOpen(false);
                         healthLevels.onStart();
-                        healthLevels.onToggle("stop");
+                        if ((key === "stop" ? selectedPairTrade.stopPrice : selectedPairTrade.targetPrice) === null) {
+                          healthLevels.onToggle(key);
+                        }
+                      } : null}
+                      onMoreOptions={selectedPairTrade.status === "PENDING" ? () => {
+                        setTradeSheetOpen(false);
+                        openEntryForm(selectedPairTrade);
                       } : null}
                     />
                   )
                 ) : null}
                 <div className="nl-mtrade-sheet-actions" role="group" aria-label="Trade controls">
-                  {healthLevels ? (
-                    <button
-                      type="button"
-                      className="nl-mlevels-start pressable"
-                      onClick={() => {
-                        setTradeSheetOpen(false);
-                        healthLevels.onStart();
-                      }}
-                      aria-label="Edit stop loss and take profit"
-                    >
-                      <MoveVertical aria-hidden="true" />
-                      Edit
-                    </button>
-                  ) : null}
                   {manualTradeMode !== "analyze" || newsOrderInFlight ? (
                     <button
                       key={manualTradeMode}

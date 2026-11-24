@@ -2077,7 +2077,7 @@ export async function journalTradeLog(
             max_hold_bars AS "maxHoldBars", bars_held AS "barsHeld",
             strategy_family AS "strategyFamily", batch_number AS "batchNumber",
             "brokerExecutionStatus", "brokerFailureReason",
-            sl_price AS "slPrice", tp_price AS "tpPrice"
+            sl_price AS "slPrice", tp_price AS "tpPrice", units
      FROM (
        SELECT manual.id::text, manual.origin,
               CASE WHEN pending.paper_trade_id IS NOT NULL THEN manual.id::text ELSE NULL END AS chart_trade_id,
@@ -2098,7 +2098,9 @@ export async function journalTradeLog(
                -- levels can be moved (or be none) while paper_trades.stop
                -- stays the 1R reference and its target a placeholder.
                CASE WHEN pending.paper_trade_id IS NOT NULL THEN pending.stop_price::float ELSE manual.stop::float END AS sl_price,
-               CASE WHEN pending.paper_trade_id IS NOT NULL THEN pending.target_price::float ELSE manual.target::float END AS tp_price
+               CASE WHEN pending.paper_trade_id IS NOT NULL THEN pending.target_price::float ELSE manual.target::float END AS tp_price,
+               -- Size as the order was placed; OANDA's own figure replaces it below when known.
+               abs(NULLIF(pending.metadata->>'units','')::float) AS units
        FROM paper_trades manual
        LEFT JOIN LATERAL (
          SELECT entry.instrument, entry.paper_trade_id, entry.metadata, entry.stop_price, entry.target_price,
@@ -2147,7 +2149,8 @@ export async function journalTradeLog(
                trade.strategy_family, batch.batch_number,
                CASE WHEN intent.status='rejected' THEN 'rejected' ELSE NULL END,
                CASE WHEN intent.status='rejected' THEN intent.failure_reason ELSE NULL END,
-               trade.stop::float, trade.target::float
+               trade.stop::float, trade.target::float,
+               abs(trade.calculated_units::float)
        FROM paper_strategy_trades trade
        JOIN instruments instrument ON instrument.code = trade.instrument
        JOIN paper_strategy_batches batch ON batch.id = trade.batch_id
@@ -2179,7 +2182,7 @@ function withBrokerCash(rows: Record<string, any>[], ledger: BrokerLedger | null
     if (row.status !== "closed" || row.brokerExecutionStatus === "rejected") return row;
     const brokerId = typeof row.brokerTradeId === "string" ? row.brokerTradeId : null;
     const booked = brokerId ? ledger?.trades.get(brokerId) : undefined;
-    if (booked) return { ...row, paperPl: booked.realizedPL, brokerFinancing: booked.financing, brokerSpreadCost: booked.spreadCost, moneySource: "broker" };
+    if (booked) return { ...row, paperPl: booked.realizedPL, brokerFinancing: booked.financing, brokerSpreadCost: booked.spreadCost, units: booked.units ?? row.units, moneySource: "broker" };
     if (row.origin === "strategy" && !brokerId) return { ...row, paperPl: null, moneySource: "paper-only" };
     return row;
   });
@@ -2227,7 +2230,7 @@ export async function paperTradesForInstrument(userId: string, instrument: strin
   const rows = await query(
     `SELECT * FROM (
        SELECT trade.id,trade.trade_sequence::text AS "tradeSequence",trade.instrument,trade.direction,trade.status,trade.outcome,trade.entry::float,trade.stop::float,trade.target::float,trade.exit::float,trade.result_r::float AS "resultR",trade.opened_at AS "openedAt",trade.closed_at AS "closedAt",trade.exit_reason AS "exitReason",batch.batch_number AS "batchNumber",
-              intent.broker_trade_id AS "brokerTradeId"
+              intent.broker_trade_id AS "brokerTradeId",'strategy'::text AS origin,trade.paper_pl::float AS "paperPl"
        FROM paper_strategy_trades trade JOIN paper_strategy_batches batch ON batch.id=trade.batch_id
        LEFT JOIN LATERAL (
          SELECT broker_trade_id FROM practice_order_intents
@@ -2240,7 +2243,7 @@ export async function paperTradesForInstrument(userId: string, instrument: strin
               CASE manual.result WHEN 'win' THEN 'target_first' WHEN 'loss' THEN 'stop_first' ELSE 'forced_close' END AS outcome,
               manual.entry::float,manual.stop::float,manual.target::float,manual.exit::float,manual.result_r::float AS "resultR",
               manual.opened_at AS "openedAt",manual.closed_at AS "closedAt",manual.reason AS "exitReason",NULL::int AS "batchNumber",
-              pending.metadata->>'brokerTradeId' AS "brokerTradeId"
+              pending.metadata->>'brokerTradeId' AS "brokerTradeId",'manual'::text AS origin,manual.paper_pl::float AS "paperPl"
        FROM paper_trades manual
        JOIN pending_manual_entries pending ON pending.paper_trade_id=manual.id
        WHERE manual.user_id=$1 AND pending.instrument=$2 AND manual.status='closed'
@@ -2248,7 +2251,8 @@ export async function paperTradesForInstrument(userId: string, instrument: strin
      ORDER BY (chart_trade.id::text = $4) DESC, "openedAt" DESC LIMIT $3`,
     [userId, instrument, limit, includeTradeId ?? ""],
   );
-  return projectRiskReporting(userId, rows.rows);
+  // Money is what OANDA booked, the same as the journal shows.
+  return withBrokerCash(await projectRiskReporting(userId, rows.rows), await brokerClosedLedger());
 }
 
 export async function paperRiskExposure(userId: string) {

@@ -10,10 +10,12 @@ export type BrokerClosedTrade = {
   financing: number;
   /** Half-spread paid on the opening and closing fills, in account currency. Already inside realizedPL; null if unreadable. */
   spreadCost: number | null;
+  /** Size the trade opened with, in units (always positive); null if unreadable. */
+  units: number | null;
 };
 export type BrokerLedger = { trades: Map<string, BrokerClosedTrade>; realizedPL: number; financing: number; spreadCost: number | null };
 
-type OandaTrade = { id?: string; realizedPL?: string; financing?: string };
+type OandaTrade = { id?: string; realizedPL?: string; financing?: string; initialUnits?: string };
 type FillLeg = { tradeID?: string; units?: string };
 type OandaFill = { halfSpreadCost?: string; tradeOpened?: FillLeg; tradeReduced?: FillLeg; tradesClosed?: FillLeg[] };
 
@@ -74,7 +76,8 @@ async function readLedger(): Promise<BrokerLedger> {
     for (const trade of page) {
       const realizedPL = Number(trade.realizedPL), financing = Number(trade.financing ?? 0);
       if (!trade.id || !Number.isFinite(realizedPL) || !Number.isFinite(financing)) continue;
-      trades.set(trade.id, { realizedPL, financing, spreadCost: null });
+      const units = Math.abs(Number(trade.initialUnits));
+      trades.set(trade.id, { realizedPL, financing, spreadCost: null, units: Number.isFinite(units) && units > 0 ? units : null });
     }
     // Newest first; page backwards until a short page or no new trades.
     if (page.length < PAGE || trades.size === sizeBefore) break;
